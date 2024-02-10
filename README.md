@@ -71,3 +71,11 @@ python -m unittest discover tests
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
+
+## Disclaimer
+
+Please note that ReplicaSyncAPI is currently in beta. While we are constantly working to improve and expand its capabilities, it may not be fully stable and could potentially cause issues with your MongoDB instances.
+
+ReplicaSyncAPI is provided "as is", without warranty of any kind, express or implied. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+
+Use of ReplicaSyncAPI is at your own risk and discretion. We highly recommend thoroughly testing it in a controlled environment before using it in production. Always ensure you have up-to-date backups of your data.
