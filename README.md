@@ -9,7 +9,7 @@ These instructions will guide you on how to get a copy of the project up and run
 ### Prerequisites
 
 - Python 3.8 or higher (3.8.10 recommended)
-- MongoDB
+- MongoDB 4.4 tested (2 replicasets || 1 replicaset 1 mongo-s || 1 replicaset 1 standalone should work)
 - pip 20.0.2 or higher (Python package installer)
 
 ### Installation
@@ -41,7 +41,7 @@ MONGODB_CONNECTION_STRING_2=<your_connection_string_2>
 4. Run the application:
 
 ```
-python -m app/main
+python -m app.main
 ```
 
 The application will start and wait for a /POST call in order to start synchronizing data between the two MongoDB replica sets.
@@ -53,10 +53,10 @@ curl -X POST -H "Content-Type: application/json" -d '{"db_name": "<your_db_name>
 
 ## Running the tests
 
-To run the tests, use the following command:
+Currently working on it.
 
 ```
-python -m unittest discover tests
+Coming soon...
 ```
 
 ## Built With
