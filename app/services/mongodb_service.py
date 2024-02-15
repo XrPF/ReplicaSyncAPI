@@ -165,10 +165,11 @@ class MongoDBService:
             with open(batch_file, 'r') as f:
                 last_processed_batch = int(f.read().strip())
 
-        for i in range(start_batch, min(end_batch, parent_batches)):
-            if i > last_processed_batch:
-                self.process_batch(i * batch_size, batch_size, batch_file, upsert_key)
-        logger.info(f'Processed up to batch {end_batch}')
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            for i in range(start_batch, min(end_batch, parent_batches)):
+                if i > last_processed_batch:
+                    self.process_batch(i * batch_size, batch_size, batch_file, upsert_key)
+            logger.info(f'Processed up to batch {end_batch}')
 
     def compare_and_update(self, db_name=None, collection_name=None, upsert_key=None):
         if db_name is not None and collection_name is not None:
