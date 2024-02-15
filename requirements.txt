@@ -3,3 +3,5 @@ pymongo==3.13.0
 python-dotenv==0.15.0
 python-snappy==0.6.0
 zstandard==0.15.2
+Werkzeug==2.2.2
+psutil==5.9.0

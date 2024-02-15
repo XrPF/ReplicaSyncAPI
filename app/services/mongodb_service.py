@@ -6,7 +6,6 @@ import psutil
 import random
 import logging
 import threading
-import concurrent.futures
 from dotenv import load_dotenv
 from multiprocessing import Manager
 from pymongo import MongoClient, UpdateOne
@@ -20,12 +19,11 @@ class MongoDBService:
         # MongoDB Connection
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1')
         uri2 = os.getenv('MONGO_CONNECTION_STRING_2')
+        self.syncSrc = MongoClient(uri1)
+        self.syncDst = MongoClient(uri2)
         if os.getenv('DB_NAME') is not None and os.getenv('COLLECTION_NAME') is not None:
             self.db_name = os.getenv('DB_NAME')
             self.collection_name = os.getenv('COLLECTION_NAME')
-        self.syncSrc = MongoClient(uri1)
-        self.syncDst = MongoClient(uri2)
-        if self.db_name is not None and self.collection_name is not None:
             self.coll_src = self.get_collection(self.db_name, self.collection_name, self.syncSrc)
             self.coll_dst = self.get_collection(self.db_name, self.collection_name, self.syncDst)
         # Memory Management
@@ -33,12 +31,18 @@ class MongoDBService:
         base_memory = self.memory_usage_psutil()
         available_memory = total_memory - base_memory
         memory_per_worker = (5 / 100 ) * total_memory
-        self.max_workers = int(available_memory / memory_per_worker)
+        if os.getenv('MAX_WORKERS') is not None:
+            self.max_workers = int(os.getenv('MAX_WORKERS'))
+        else:
+            self.max_workers = int(available_memory / memory_per_worker)
         self.mem_threshold = 0.4 * total_memory
         logger.info(f'Memory Management: Total {total_memory} MB || Base {base_memory} MB || Avail {available_memory}')
         logger.info(f'Memory Management: Max workers {self.max_workers} || Mem threshold {self.mem_threshold} || Mem x worker {memory_per_worker}')
         # Percentage of documents to be processed
-        self.percentage = 0.2
+        if os.getenv('PERCENTAGE') is not None:
+            self.percentage = float(os.getenv('PERCENTAGE'))
+        else:
+            self.percentage = 0.2
         self.total_docs = 0
         self.processed_docs = 0
         self.processed_docs_lock = threading.Lock()

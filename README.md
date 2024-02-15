@@ -36,6 +36,10 @@ pip install -r requirements.txt
 ```
 MONGODB_CONNECTION_STRING_1=<your_connection_string_1>
 MONGODB_CONNECTION_STRING_2=<your_connection_string_2>
+DB_NAME=<your_db_name>
+COLLECTION_NAME=<your_collection_name>
+MAX_WORKERS=<max_workers_to_parallel_sync>
+PERCENTAGE=<percentage_of_documents_per_batch>
 ```
 
 4. Run the application:
