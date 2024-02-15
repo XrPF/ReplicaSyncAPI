@@ -52,7 +52,7 @@ The application will start and wait for a /POST call in order to start synchroni
 
 5. Make a /POST call to the API
 ```
-curl -X POST -H "Content-Type: application/json" -d '{"db_name": "<your_db_name>", "collection_name": "<your_collection_name>"}' http://127.0.0.1:5000/sync
+curl -X POST -H "Content-Type: application/json" -d '{"db_name": "<your_db_name>", "collection_name": "<your_collection_name>"}' http://127.0.0.1:2717/sync
 ```
 
 ## Running the tests
