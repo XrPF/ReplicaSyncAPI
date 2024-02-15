@@ -94,7 +94,7 @@ class MongoDBService:
         coll_dest = self.coll_dst
         operations = []
         num_ids = 0
-        sleep_time = random.uniform(self.max_workers // 2, self.max_workers)
+        sleep_time = random.uniform(self.max_workers, self.max_workers * 2)
         logger.debug(f'[{threading.current_thread().name}] ({i}): Sleeping for {round(sleep_time, 1)} seconds...')
         time.sleep(sleep_time)
         start_time = time.time()
@@ -168,8 +168,8 @@ class MongoDBService:
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
-                    self.process_batch(i * batch_size, batch_size, batch_file, upsert_key)
-            logger.info(f'Processed up to batch {end_batch}')
+                    executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
+        logger.info(f'Processed up to batch {end_batch}')
 
     def compare_and_update(self, db_name=None, collection_name=None, upsert_key=None):
         if db_name is not None and collection_name is not None:
