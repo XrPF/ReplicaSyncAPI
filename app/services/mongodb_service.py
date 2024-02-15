@@ -17,8 +17,8 @@ class MongoDBService:
     def __init__(self):
         load_dotenv()
         if os.getenv('TOTAL_MACHINES') is not None and os.getenv('MACHINE_ID') is not None:
-            self.total_machines = os.getenv('TOTAL_MACHINES')
-            self.machine_id = os.getenv('MACHINE_ID')
+            self.total_machines = int(os.getenv('TOTAL_MACHINES'))
+            self.machine_id = int(os.getenv('MACHINE_ID'))
         else:
             self.total_machines = 1
             self.machine_id = 1
