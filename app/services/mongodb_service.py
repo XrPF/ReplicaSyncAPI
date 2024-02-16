@@ -52,8 +52,6 @@ class MongoDBService:
         self.total_docs = 0
         self.processed_docs = 0
         self.processed_docs_lock = threading.Lock()
-        # Time Management
-        self.percentage_diff_threshold = 20
 
     def get_collection(self, db_name, collection_name, client):
         db = client[db_name]
@@ -134,15 +132,9 @@ class MongoDBService:
             finally:
                 cursor.close()
                 session.end_session()
-                #time.sleep(round(sleep_time, 1) / (3/2))
                 percent_diff = (abs(read_time - write_time) / min(read_time, write_time)) * 100
                 logger.info(f'[{threading.current_thread().name}] ({i}): Read time: {read_time} seconds || Write time: {write_time} seconds || Percent diff: {round(percent_diff, 2)}%')
                 if write_time < read_time:
-                    #if percent_diff > self.percentage_diff_threshold:
-                    #    if math.floor(read_time) > 0:
-                    #        num_digits = math.floor(math.log10(math.floor(read_time))) + 1
-                    #    else:
-                    #        num_digits = 1
                     read_sleep_time = random.uniform(read_time, read_time * 2)
                     logger.warn(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {read_sleep_time} seconds...")
                     time.sleep(read_sleep_time)
@@ -208,9 +200,37 @@ class MongoDBService:
             os.remove(batch_file)
 
         self.close_connections()
-        logger.info(f'Cleaned up {batch_file}. Closed connections to databases and exiting...')
-    
+        if self.machine_id != self.total_machines:
+            logger.info(f'Cleaned up {batch_file}. Closed connections to databases and exiting...')
+        else:
+            logger.info(f'Cleaned up {batch_file}. Closed connections to databases and starting replication...')
+            self.replicate_changes()
+
     def sync_status_progress(self):
         progress = round((self.processed_docs / self.total_docs) * 100, 2)
         progress_bar = '#' * int(progress / 100) + '-' * (100 - int(progress / 100))
         return f'{progress}% [{progress_bar}]'
+    
+    def replicate_changes(self):
+        logger.info(f'Starting to replicate changes for {self.db_name}.{self.collection_name}')
+        with self.syncSrc[self.db_name][self.collection_name].watch() as stream:
+            for change in stream:
+                operation_type = change['operationType']
+                document_key = change['documentKey']
+                logger.debug(f'Change detected: {operation_type} {document_key}')
+                if operation_type == 'insert':
+                    full_document = change['fullDocument']
+                    self.syncDst[self.db_name][self.collection_name].insert_one(full_document)
+                    logger.info(f'Inserted document: {document_key}')
+                elif operation_type == 'update':
+                    update_description = change['updateDescription']
+                    self.syncDst[self.db_name][self.collection_name].update_one(document_key, update_description)
+                    logger.info(f'Updated document: {document_key}')
+                elif operation_type == 'delete':
+                    self.syncDst[self.db_name][self.collection_name].delete_one(document_key)
+                    logger.info(f'Deleted document: {document_key}')
+                elif operation_type == 'replace':
+                    full_document = change['fullDocument']
+                    self.syncDst[self.db_name][self.collection_name].replace_one(document_key, full_document)
+                    logger.info(f'Replaced document: {document_key}')
+        logger.info(f'Finished replicating changes for {self.db_name}.{self.collection_name}')
