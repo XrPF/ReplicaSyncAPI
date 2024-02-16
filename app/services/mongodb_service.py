@@ -180,19 +180,24 @@ class MongoDBService:
 
         logger.info(f'Sync started for database {self.db_name}: {total_docs} estimated total documents in collection {self.collection_name}')
 
-        # Set the total_docs and processed_docs
-        self.total_docs = total_docs
-        self.processed_docs = 0
-        batch_size = self.calculate_batch_size(total_docs)
-        # Calculate the number of batches per machine
-        parent_batches = math.ceil(total_docs / batch_size)
-        batches_per_machine = math.ceil(parent_batches / self.total_machines)
-        start_batch = (self.machine_id - 1) * batches_per_machine
-        end_batch = start_batch + batches_per_machine
+        while True:
+            total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
+            batch_size = self.calculate_batch_size(total_docs)
+            parent_batches = math.ceil(total_docs / batch_size)
+            batches_per_machine = math.ceil(parent_batches / self.total_machines)
+            start_batch = (self.machine_id - 1) * batches_per_machine
+            end_batch = start_batch + batches_per_machine
 
-        logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
+            logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
 
-        self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
+            self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
+
+            # Recheck the total number of documents
+            new_total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
+            if new_total_docs > total_docs:
+                logger.info(f'Total number of documents has increased from {total_docs} to {new_total_docs}. Re-running process_batches()...')
+            else:
+                break
 
         logger.info(f'Sync ended for {self.db_name}.{self.collection_name}')
 
