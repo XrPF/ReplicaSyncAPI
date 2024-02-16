@@ -94,7 +94,8 @@ class MongoDBService:
         coll_dest = self.coll_dst
         operations = []
         num_ids = 0
-        sleep_time = random.uniform(self.max_workers / 2, self.max_workers * 2)
+        base_sleep_time = min(self.max_workers, 60)
+        sleep_time = random.uniform((base_sleep_time / 2) / self.total_machines, base_sleep_time)
         logger.debug(f'[{threading.current_thread().name}] ({i}): Sleeping for {round(sleep_time, 1)} seconds...')
         time.sleep(sleep_time)
         start_time = time.time()
@@ -142,7 +143,7 @@ class MongoDBService:
                     #        num_digits = math.floor(math.log10(math.floor(read_time))) + 1
                     #    else:
                     #        num_digits = 1
-                    read_sleep_time = random.uniform(read_time * sleep_time/2, read_time * sleep_time)
+                    read_sleep_time = random.uniform(read_time, read_time * 2)
                     logger.warn(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {read_sleep_time} seconds...")
                     time.sleep(read_sleep_time)
 
