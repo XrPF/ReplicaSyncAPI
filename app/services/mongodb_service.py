@@ -94,7 +94,7 @@ class MongoDBService:
         coll_dest = self.coll_dst
         operations = []
         num_ids = 0
-        sleep_time = random.uniform(self.max_workers, self.max_workers * 2)
+        sleep_time = random.uniform(self.max_workers / 2, self.max_workers * 2)
         logger.debug(f'[{threading.current_thread().name}] ({i}): Sleeping for {round(sleep_time, 1)} seconds...')
         time.sleep(sleep_time)
         start_time = time.time()
@@ -133,17 +133,18 @@ class MongoDBService:
             finally:
                 cursor.close()
                 session.end_session()
-                time.sleep(round(sleep_time, 1) / (3/2))
+                #time.sleep(round(sleep_time, 1) / (3/2))
                 percent_diff = (abs(read_time - write_time) / min(read_time, write_time)) * 100
                 logger.info(f'[{threading.current_thread().name}] ({i}): Read time: {read_time} seconds || Write time: {write_time} seconds || Percent diff: {round(percent_diff, 2)}%')
                 if write_time < read_time:
-                    if percent_diff > self.percentage_diff_threshold:
-                        if math.floor(read_time) > 0:
-                            num_digits = math.floor(math.log10(math.floor(read_time))) + 1
-                        else:
-                            num_digits = 1
-                        logger.warn(f"[{threading.current_thread().name}] ({i}): Threshold exceeded, let's take a break for {num_digits * round(sleep_time, 1)} seconds...")
-                        time.sleep(num_digits * sleep_time)
+                    #if percent_diff > self.percentage_diff_threshold:
+                    #    if math.floor(read_time) > 0:
+                    #        num_digits = math.floor(math.log10(math.floor(read_time))) + 1
+                    #    else:
+                    #        num_digits = 1
+                    read_sleep_time = random.uniform(read_time * sleep_time/2, read_time * sleep_time)
+                    logger.warn(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {read_sleep_time} seconds...")
+                    time.sleep(read_sleep_time)
 
     def calculate_batch_size(self, total_docs):
         return math.ceil((int(total_docs * self.percentage) // 100) / self.max_workers)
