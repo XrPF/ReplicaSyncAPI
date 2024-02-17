@@ -102,6 +102,7 @@ class MongoDBService:
                             self.processed_docs += num_ids
                     except Exception as e:
                         logger.error(f'[{threading.current_thread().name}] ({i}): ERROR in bulk_write: {e}')
+                        raise
                     else:
                         end_time = time.time()
                         write_time = round(end_time - start_time, 3)
@@ -157,32 +158,29 @@ class MongoDBService:
 
         logger.info(f'Looking for documents in {self.db_name}.{self.collection_name}')
 
-        total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
+        self.total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
 
-        logger.info(f'Sync started for database {self.db_name}: {total_docs} estimated total documents in collection {self.collection_name}')
+        logger.info(f'Sync started for database {self.db_name}: {self.total_docs} estimated total documents in collection {self.collection_name}')
 
         delay = random.uniform(0, self.max_workers)
         time.sleep(delay)
 
-        while True:
-            total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
-            self.total_docs = total_docs
-            batch_size = self.calculate_batch_size(total_docs)
-            parent_batches = math.ceil(total_docs / batch_size)
-            batches_per_machine = math.ceil(parent_batches / self.total_machines)
-            start_batch = (self.machine_id - 1) * batches_per_machine
-            end_batch = min(start_batch + batches_per_machine, parent_batches)
+        if self.machine_id == 1:
+            watcher = threading.Thread(target=self.replicate_changes)
+            watcher.start()
 
-            logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
+        batch_size = self.calculate_batch_size(self.total_docs)
+        parent_batches = math.ceil(self.total_docs / batch_size)
+        batches_per_machine = math.ceil(parent_batches / self.total_machines)
+        start_batch = (self.machine_id - 1) * batches_per_machine
+        end_batch = min(start_batch + batches_per_machine, parent_batches)
 
-            self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
+        logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
 
-            # Recheck the total number of documents
-            new_total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
-            if new_total_docs > total_docs:
-                logger.info(f'Total number of documents has increased from {total_docs} to {new_total_docs}. Re-running process_batches()...')
-            else:
-                break
+        self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
+
+        if self.machine_id == 1:
+            watcher.join()
 
         logger.info(f'Sync ended for {self.db_name}.{self.collection_name}')
 
@@ -190,37 +188,38 @@ class MongoDBService:
             os.remove(batch_file)
 
         self.close_connections()
-        if self.machine_id != self.total_machines:
-            logger.info(f'Cleaned up {batch_file}. Closed connections to databases and exiting...')
-        else:
-            logger.info(f'Cleaned up {batch_file}. Closed connections to databases and starting replication...')
-            self.replicate_changes()
+        logger.info(f'Cleaned up {batch_file}. Closed connections to databases and exiting...')
 
     def sync_status_progress(self):
         progress = round((self.processed_docs / self.total_docs) * 100, 2)
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
-    def replicate_changes(self):
+    def replicate_changes(self, cv):
         logger.info(f'Starting to replicate changes for {self.db_name}.{self.collection_name}')
-        with self.syncSrc[self.db_name][self.collection_name].watch() as stream:
-            for change in stream:
-                operation_type = change['operationType']
-                document_key = change['documentKey']
-                logger.debug(f'Change detected: {operation_type} {document_key}')
-                if operation_type == 'insert':
-                    full_document = change['fullDocument']
-                    self.syncDst[self.db_name][self.collection_name].insert_one(full_document)
-                    logger.info(f'Inserted document: {document_key}')
-                elif operation_type == 'update':
-                    update_description = change['updateDescription']
-                    self.syncDst[self.db_name][self.collection_name].update_one(document_key, update_description)
-                    logger.info(f'Updated document: {document_key}')
-                elif operation_type == 'delete':
-                    self.syncDst[self.db_name][self.collection_name].delete_one(document_key)
-                    logger.info(f'Deleted document: {document_key}')
-                elif operation_type == 'replace':
-                    full_document = change['fullDocument']
-                    self.syncDst[self.db_name][self.collection_name].replace_one(document_key, full_document)
-                    logger.info(f'Replaced document: {document_key}')
-        logger.info(f'Finished replicating changes for {self.db_name}.{self.collection_name}')
+        try:
+            with self.syncSrc[self.db_name][self.collection_name].watch() as stream:
+                for change in stream:
+                    with cv:
+                        cv.wait()
+                    operation_type = change['operationType']
+                    document_key = change['documentKey']
+                    logger.debug(f'Change detected: {operation_type} {document_key}')
+                    if operation_type == 'insert':
+                        full_document = change['fullDocument']
+                        self.syncDst[self.db_name][self.collection_name].insert_one(full_document)
+                        logger.info(f'Inserted document: {document_key}')
+                    elif operation_type == 'update':
+                        update_description = change['updateDescription']
+                        self.syncDst[self.db_name][self.collection_name].update_one(document_key, update_description)
+                        logger.info(f'Updated document: {document_key}')
+                    elif operation_type == 'delete':
+                        self.syncDst[self.db_name][self.collection_name].delete_one(document_key)
+                        logger.info(f'Deleted document: {document_key}')
+                    elif operation_type == 'replace':
+                        full_document = change['fullDocument']
+                        self.syncDst[self.db_name][self.collection_name].replace_one(document_key, full_document)
+                        logger.info(f'Replaced document: {document_key}')
+        except Exception as e:
+            logger.error(f'Error in replicate_changes: {e}')
+            raise
