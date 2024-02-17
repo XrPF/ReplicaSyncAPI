@@ -31,8 +31,8 @@ class MongoDBService:
         self.syncSrc = MongoClient(uri1)
         self.syncDst = MongoClient(uri2)
         if os.getenv('MONGO_CONNECTION_STRING_REPLICA_1') is None and os.getenv('MONGO_CONNECTION_STRING_REPLICA_2') is None:
-            replicate_uri1 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_REPLICA_1')}/?{os.getenv('MONGO_OPTS_REPLICA_1')}"
-            replicate_uri2 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_REPLICA_2')}/?{os.getenv('MONGO_OPTS_REPLICA_2')}"
+            replicate_uri1 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_1')}/?{os.getenv('MONGO_OPTS_REPLICA_1')}"
+            replicate_uri2 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_2')}/?{os.getenv('MONGO_OPTS_REPLICA_2')}"
         else:
             replicate_uri1 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_1')
             replicate_uri2 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_2')
