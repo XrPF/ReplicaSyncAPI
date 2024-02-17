@@ -143,7 +143,6 @@ class MongoDBService:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
                     executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
-            executor.shutdown(wait=True)  # Ensure all tasks are done before proceeding
 
         logger.info(f'Processed up to batch {end_batch}')
 
@@ -164,6 +163,7 @@ class MongoDBService:
 
         while True:
             total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
+            self.total_docs = total_docs
             batch_size = self.calculate_batch_size(total_docs)
             parent_batches = math.ceil(total_docs / batch_size)
             batches_per_machine = math.ceil(parent_batches / self.total_machines)
