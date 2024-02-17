@@ -31,19 +31,28 @@ cd ReplicaSyncAPI
 pip install -r requirements.txt
 ```
 
-4. Set up your environment variables in the .env file:
+4. Set up your environment variables in the .env file. Note that we should specify the "base" OPTS and the OPTS_REPLICA (it is required in order to use a separate connection pool for synchronization batch process and replication process):
 
 ```
-MONGODB_CONNECTION_STRING_1=<your_connection_string_1>
-MONGODB_CONNECTION_STRING_2=<your_connection_string_2>
-# Other optional variables
+MONGO_USER=<your_mongo_user>
+MONGO_PASSWORD=<your_mongo_password>
+MONGO_HOSTS_1=<your_mongo_hosts_1>
+MONGO_HOSTS_2=<your_mongo_hosts_2>
+MONGO_OPTS_1=<your_mongo_options_1>
+MONGO_OPTS_2=<your_mongo_options_2>
+MONGO_OPTS_REPLICA_1=<your_mongo_options_replica_1>
+MONGO_OPTS_REPLICA_2=<your_mongo_options_replica_2>
+# Optional
+MONGO_CONNECTION_STRING_1=<your_connection_string_1>
+MONGO_CONNECTION_STRING_2=<your_connection_string_2>
+MONGO_CONNECTION_STRING_REPLICATE_1=<your_connection_string_1>
+MONGO_CONNECTION_STRING_REPLICATE_2=<your_connection_string_2>
 DB_NAME=<your_db_name>
 COLLECTION_NAME=<your_collection_name>
 MAX_WORKERS=<max_workers_to_parallel_sync>
 PERCENTAGE=<percentage_of_documents_per_batch>
 TOTAL_MACHINES=<total_number_machines_to_parallel_sync> # From 1 to N
 MACHINE_ID=<incremental_number_to_id_machine> # From 1 to N
-```
 
 4. Run the application:
 
