@@ -195,13 +195,16 @@ class MongoDBService:
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
-    def replicate_changes(self, cv):
+    def replicate_changes(self, db_name=None, collection_name=None):
+        if db_name is not None and collection_name is not None:
+            self.db_name = db_name
+            self.collection_name = collection_name
+            self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc)
+            self.coll_dst = self.get_collection(db_name, collection_name, self.syncDst)
         logger.info(f'Starting to replicate changes for {self.db_name}.{self.collection_name}')
         try:
             with self.syncSrc[self.db_name][self.collection_name].watch() as stream:
                 for change in stream:
-                    with cv:
-                        cv.wait()
                     operation_type = change['operationType']
                     document_key = change['documentKey']
                     logger.debug(f'Change detected: {operation_type} {document_key}')
