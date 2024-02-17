@@ -22,10 +22,22 @@ class MongoDBService:
             self.total_machines = 1
             self.machine_id = 1
         # MongoDB Connection
-        uri1 = os.getenv('MONGO_CONNECTION_STRING_1')
-        uri2 = os.getenv('MONGO_CONNECTION_STRING_2')
+        if os.getenv('MONGO_CONNECTION_STRING_1') is None and os.getenv('MONGO_CONNECTION_STRING_2') is None:
+            uri1 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_1')}/?{os.getenv('MONGO_OPTS_1')}"
+            uri2 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_2')}/?{os.getenv('MONGO_OPTS_2')}"
+        else:
+            uri1 = os.getenv('MONGO_CONNECTION_STRING_1')
+            uri2 = os.getenv('MONGO_CONNECTION_STRING_2')
         self.syncSrc = MongoClient(uri1)
         self.syncDst = MongoClient(uri2)
+        if os.getenv('MONGO_CONNECTION_STRING_REPLICA_1') is None and os.getenv('MONGO_CONNECTION_STRING_REPLICA_2') is None:
+            replicate_uri1 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_REPLICA_1')}/?{os.getenv('MONGO_OPTS_REPLICA_1')}"
+            replicate_uri2 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_REPLICA_2')}/?{os.getenv('MONGO_OPTS_REPLICA_2')}"
+        else:
+            replicate_uri1 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_1')
+            replicate_uri2 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_2')
+        self.syncSrc_replicate = MongoClient(replicate_uri1)
+        self.syncDst_replicate = MongoClient(replicate_uri2)
         if os.getenv('DB_NAME') is not None and os.getenv('COLLECTION_NAME') is not None:
             self.db_name = os.getenv('DB_NAME')
             self.collection_name = os.getenv('COLLECTION_NAME')
@@ -178,6 +190,7 @@ class MongoDBService:
         logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
 
         self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
+        self.close_connections()
 
         if self.machine_id == 1:
             watcher.join()
@@ -187,8 +200,8 @@ class MongoDBService:
         if os.path.exists(batch_file):
             os.remove(batch_file)
 
-        self.close_connections()
         logger.info(f'Cleaned up {batch_file}. Closed connections to databases and exiting...')
+
 
     def sync_status_progress(self):
         progress = round((self.processed_docs / self.total_docs) * 100, 2)
@@ -199,30 +212,30 @@ class MongoDBService:
         if db_name is not None and collection_name is not None:
             self.db_name = db_name
             self.collection_name = collection_name
-            self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc)
-            self.coll_dst = self.get_collection(db_name, collection_name, self.syncDst)
-        logger.info(f'Starting to replicate changes for {self.db_name}.{self.collection_name}')
+            self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc_replicate)
+            self.coll_dst = self.get_collection(db_name, collection_name, self.syncDst_replicate)
+        logger.info(f'[Real-Time-Replication] Starting to replicate changes for {self.db_name}.{self.collection_name}')
         try:
-            with self.syncSrc[self.db_name][self.collection_name].watch() as stream:
+            with self.syncSrc_replicate[self.db_name][self.collection_name].watch() as stream:
                 for change in stream:
                     operation_type = change['operationType']
                     document_key = change['documentKey']
-                    logger.debug(f'Change detected: {operation_type} {document_key}')
+                    logger.debug(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Change detected: {operation_type} {document_key}')
                     if operation_type == 'insert':
                         full_document = change['fullDocument']
-                        self.syncDst[self.db_name][self.collection_name].insert_one(full_document)
-                        logger.info(f'Inserted document: {document_key}')
+                        self.syncDst_replicate[self.db_name][self.collection_name].insert_one(full_document)
+                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Inserted document: {document_key}')
                     elif operation_type == 'update':
                         update_description = change['updateDescription']
-                        self.syncDst[self.db_name][self.collection_name].update_one(document_key, update_description)
-                        logger.info(f'Updated document: {document_key}')
+                        self.syncDst_replicate[self.db_name][self.collection_name].update_one(document_key, update_description)
+                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Updated document: {document_key}')
                     elif operation_type == 'delete':
-                        self.syncDst[self.db_name][self.collection_name].delete_one(document_key)
-                        logger.info(f'Deleted document: {document_key}')
+                        self.syncDst_replicate[self.db_name][self.collection_name].delete_one(document_key)
+                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Deleted document: {document_key}')
                     elif operation_type == 'replace':
                         full_document = change['fullDocument']
-                        self.syncDst[self.db_name][self.collection_name].replace_one(document_key, full_document)
-                        logger.info(f'Replaced document: {document_key}')
+                        self.syncDst_replicate[self.db_name][self.collection_name].replace_one(document_key, full_document)
+                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Replaced document: {document_key}')
         except Exception as e:
-            logger.error(f'Error in replicate_changes: {e}')
+            logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Error in replicate_changes: {e}')
             raise
