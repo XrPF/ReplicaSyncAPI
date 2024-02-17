@@ -163,7 +163,7 @@ class MongoDBService:
 
         delay = random.uniform(0, self.max_workers)
         time.sleep(delay)
-        
+
         while True:
             total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
             self.total_docs = total_docs
@@ -198,7 +198,7 @@ class MongoDBService:
 
     def sync_status_progress(self):
         progress = round((self.processed_docs / self.total_docs) * 100, 2)
-        progress_bar = '#' * int(progress / 100) + '-' * (100 - int(progress / 100))
+        progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
     def replicate_changes(self):
