@@ -143,7 +143,8 @@ class MongoDBService:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
                     executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
-            executor.shutdown(wait=True)
+            executor.shutdown(wait=True)  # Ensure all tasks are done before proceeding
+
         logger.info(f'Processed up to batch {end_batch}')
 
     def compare_and_update(self, db_name=None, collection_name=None, upsert_key=None):
@@ -167,7 +168,7 @@ class MongoDBService:
             parent_batches = math.ceil(total_docs / batch_size)
             batches_per_machine = math.ceil(parent_batches / self.total_machines)
             start_batch = (self.machine_id - 1) * batches_per_machine
-            end_batch = start_batch + batches_per_machine
+            end_batch = min(start_batch + batches_per_machine, parent_batches)
 
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
 
