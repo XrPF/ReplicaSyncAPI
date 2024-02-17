@@ -1,4 +1,3 @@
-import gc
 import os
 import time
 import math
@@ -53,6 +52,11 @@ class MongoDBService:
         self.processed_docs = 0
         self.processed_docs_lock = threading.Lock()
 
+    def memory_usage_psutil(self):
+        process = psutil.Process(os.getpid())
+        mem = process.memory_info().rss / float(2 ** 20)
+        return max(mem, 0)
+    
     def get_collection(self, db_name, collection_name, client):
         db = client[db_name]
         collection = db[collection_name]
@@ -61,30 +65,6 @@ class MongoDBService:
     def close_connections(self):
         self.syncSrc.close()
         self.syncDst.close()
-    
-    def recycle_connections(self):
-        self.close_connections()
-        gc.collect()
-        self.coll_src = self.get_collection(self.db_name, self.collection_name, self.syncSrc)
-        self.coll_dst = self.get_collection(self.db_name, self.collection_name, self.syncDst)
-        sleep_time = random.uniform(2 * self.max_workers, 3 * self.max_workers)
-        logger.info(f'Recycling connections. Sleeping for {sleep_time} seconds...')
-        time.sleep(sleep_time)
-
-    def memory_usage_psutil(self):
-        process = psutil.Process(os.getpid())
-        mem = process.memory_info().rss / float(2 ** 20)
-        return max(mem, 0)
-    
-    def garbage_collect(self, thread_name, i, sleep_time):
-        mem_usage = self.memory_usage_psutil()
-        logger.info(f'[{thread_name}] ({i}): Memory usage is {round(mem_usage, 3)} MB')
-        if mem_usage > self.mem_threshold:
-            logger.info(f'[{thread_name}] ({i}): Memory usage is {round(mem_usage, 3)} MB. Garbage collecting...')
-            self.close_connections()
-            gc.collect()
-            logger.info(f'[{thread_name}] ({i}): Garbage collected. Sleeping for {sleep_time} seconds...')
-            time.sleep(sleep_time)
     
     def process_batch(self, i, batch_size, batch_file, upsert_key=None):
         logger.debug(f'[{threading.current_thread().name}] ({i}): Start batch')
@@ -163,6 +143,7 @@ class MongoDBService:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
                     executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
+            executor.shutdown(wait=True)
         logger.info(f'Processed up to batch {end_batch}')
 
     def compare_and_update(self, db_name=None, collection_name=None, upsert_key=None):
