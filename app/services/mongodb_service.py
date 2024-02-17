@@ -161,6 +161,9 @@ class MongoDBService:
 
         logger.info(f'Sync started for database {self.db_name}: {total_docs} estimated total documents in collection {self.collection_name}')
 
+        delay = random.uniform(0, self.max_workers)
+        time.sleep(delay)
+        
         while True:
             total_docs = self.syncSrc[self.db_name][self.collection_name].estimated_document_count()
             self.total_docs = total_docs
