@@ -8,9 +8,6 @@ mongodb_service = MongoDBService()
 @api_blueprint.route('/sync', methods=['POST'])
 def sync_data():
     data = request.get_json()
-    #if not data or 'db_name' not in data or 'collection_name' not in data:
-    #    return {"message": "Missing required parameters: db_name, collection_name"}, 400
-
     db_name = data.get('db_name', None)
     collection_name = data.get('collection_name', None)
     upsert_key = data.get('upsert_key', None)
@@ -20,6 +17,19 @@ def sync_data():
     thread.start()
 
     return {"message": "Waking up data synchronization processes"}, 202
+
+@api_blueprint.route('/replicate', methods=['POST'])
+def replicate_data():
+    data = request.get_json()
+    db_name = data.get('db_name', None)
+    collection_name = data.get('collection_name', None)
+
+    # Start a new thread to run the data synchronization
+    thread = Thread(target=mongodb_service.replicate_changes, args=(db_name, collection_name))
+    thread.start()
+
+    return {"message": "Waking up data replication process"}, 202
+
 
 @api_blueprint.route('/status', methods=['GET'])
 def sync_status():
