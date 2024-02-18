@@ -91,7 +91,7 @@ class MongoDBService:
     def log_and_sleep(self, i, operations, num_ids, read_time, write_time, sleep_time):
         logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} documents in {round(read_time, 3)} seconds.')
         logger.info(f'[{threading.current_thread().name}] ({i}): Written {num_ids} documents in {round(write_time, 3)} seconds.')
-        progress, _ = self.sync_status_progress()
+        progress = self.sync_status_progress().split('%')[0]
         logger.info(f'[{threading.current_thread().name}] ({i}): Progress {progress} %')
         if operations and write_time < read_time:
             if write_time * 2 < read_time:
