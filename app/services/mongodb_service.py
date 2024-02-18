@@ -5,6 +5,7 @@ import psutil
 import random
 import logging
 import threading
+import subprocess
 from dotenv import load_dotenv
 from multiprocessing import Manager
 from pymongo import MongoClient, UpdateOne
@@ -31,13 +32,11 @@ class MongoDBService:
         self.syncSrc = MongoClient(uri1)
         self.syncDst = MongoClient(uri2)
         if os.getenv('MONGO_CONNECTION_STRING_REPLICA_1') is None and os.getenv('MONGO_CONNECTION_STRING_REPLICA_2') is None:
-            replicate_uri1 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_1')}/?{os.getenv('MONGO_OPTS_REPLICA_1')}"
-            replicate_uri2 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_2')}/?{os.getenv('MONGO_OPTS_REPLICA_2')}"
+            self.replicate_uri1 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_1')}/?{os.getenv('MONGO_OPTS_REPLICA_1')}"
+            self.replicate_uri2 = f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv('MONGO_HOSTS_2')}/?{os.getenv('MONGO_OPTS_REPLICA_2')}"
         else:
-            replicate_uri1 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_1')
-            replicate_uri2 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_2')
-        self.syncSrc_replicate = MongoClient(replicate_uri1)
-        self.syncDst_replicate = MongoClient(replicate_uri2)
+            self.replicate_uri1 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_1')
+            self.replicate_uri2 = os.getenv('MONGO_CONNECTION_STRING_REPLICA_2')
         if os.getenv('DB_NAME') is not None and os.getenv('COLLECTION_NAME') is not None:
             self.db_name = os.getenv('DB_NAME')
             self.collection_name = os.getenv('COLLECTION_NAME')
@@ -77,6 +76,9 @@ class MongoDBService:
     def close_connections(self):
         self.syncSrc.close()
         self.syncDst.close()
+        if self.machine_id != 1:
+            self.syncSrc_replicate.close()
+            self.syncDst_replicate.close()
     
     def process_batch(self, i, batch_size, batch_file, upsert_key=None):
         logger.debug(f'[{threading.current_thread().name}] ({i}): Start batch')
@@ -201,6 +203,8 @@ class MongoDBService:
             os.remove(batch_file)
 
         logger.info(f'Cleaned up {batch_file}. Closed connections to databases and exiting...')
+        
+        subprocess.run(["sudo", "systemctl", "restart", "replica-sync-api.service"])
 
 
     def sync_status_progress(self):
@@ -214,6 +218,9 @@ class MongoDBService:
             self.collection_name = collection_name
             self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc_replicate)
             self.coll_dst = self.get_collection(db_name, collection_name, self.syncDst_replicate)
+        self.syncSrc_replicate = MongoClient(self.replicate_uri1)
+        self.syncDst_replicate = MongoClient(self.replicate_uri2)
+
         logger.info(f'[Real-Time-Replication] Starting to replicate changes for {self.db_name}.{self.collection_name}')
         try:
             with self.syncSrc_replicate[self.db_name][self.collection_name].watch() as stream:
