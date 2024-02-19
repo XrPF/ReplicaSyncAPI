@@ -19,7 +19,6 @@ class MongoDBService:
         self.init_mongo_connections()
         self.init_document_processing()
     
-    @profile
     def load_env_vars(self):
         load_dotenv()
         VM_WORKER_LIST = os.getenv('VM_WORKER_LIST')
@@ -33,7 +32,6 @@ class MongoDBService:
         self.max_workers = int(os.getenv('MAX_WORKERS', 1))
         self.percentage = float(os.getenv('PERCENTAGE', 0.2))
     
-    @profile
     def init_mongo_connections(self):
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
         uri2 = os.getenv('MONGO_CONNECTION_STRING_2') or self.build_mongo_uri('MONGO_HOSTS_2', 'MONGO_OPTS_2')
@@ -45,33 +43,27 @@ class MongoDBService:
     def build_mongo_uri(self, hosts_env_var, opts_env_var):
         return f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv(hosts_env_var)}/?{os.getenv(opts_env_var)}"
     
-    @profile
     def init_document_processing(self):
         self.total_docs = 0
         self.processed_docs = 0
         self.processed_docs_lock = threading.Lock()
     
-    @profile
     def get_collection(self, db_name, collection_name, client):
         db = client[db_name]
         collection = db[collection_name]
         return collection
     
-    @profile
     def close_connections(self):
         self.syncSrc.close()
         self.syncDst.close()
     
-    @profile
     def calculate_batch_size(self, total_docs):
         return math.ceil((int(total_docs * self.percentage) // 100) / self.max_workers)
     
-    @profile
     def calculate_sleep_time(self):
         base_sleep_time = min(self.max_workers, 60)
         return random.uniform((base_sleep_time / 2) / self.total_machines, base_sleep_time)
     
-    @profile
     def get_processed_batches(self, batch_file):
         manager = Manager()
         processed_batches = manager.list()
@@ -80,7 +72,6 @@ class MongoDBService:
                 processed_batches.extend([int(line.strip()) for line in f])
         return processed_batches
     
-    @profile
     def fetch_documents(self, i, batch_size, session):
         return self.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
     
@@ -109,6 +100,7 @@ class MongoDBService:
             except Exception as e:
                 logger.error(f'[{threading.current_thread().name}] ({i}): ERROR in bulk_write: {e}')
                 raise
+        del operations
 
     @profile
     def log_and_sleep(self, i, operations, num_ids, read_time, write_time, sleep_time):
@@ -122,7 +114,6 @@ class MongoDBService:
             logger.warn(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {read_sleep_time} seconds...")
             time.sleep(read_sleep_time)
 
-    @profile
     def sync_status_progress(self):
         total_docs_per_machine = self.total_docs / self.total_machines
         progress = round((self.processed_docs / total_docs_per_machine) * 100, 2)
@@ -179,7 +170,6 @@ class MongoDBService:
 
         logger.info(f'Processed up to batch {end_batch}')
 
-    @profile
     def compare_and_update(self, db_name=None, collection_name=None):
         collections_to_sync = []
         if db_name is not None and collection_name is not None:
