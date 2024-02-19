@@ -6,7 +6,7 @@ import logging
 def create_app():
     app = Flask(__name__)
 
-    handler = logging.FileHandler('api.log')
+    handler = logging.FileHandler('/var/log/ReplicaSyncAPI/service.log')
     formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
     handler.setLevel(logging.INFO)
