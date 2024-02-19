@@ -38,11 +38,11 @@ def full_sync_data():
 
     if ROLE in ["worker", "standalone"]:
         # Start a new thread to run the data synchronization
-        thread_sync = Thread(target=mongodb_service.sync_collection, args=(db_name, collection_name, upsert_key, True))
+        thread_sync = Thread(target=mongodb_service.sync_collection, args=(db_name, collection_name, upsert_key))
         thread_sync.start()
     elif ROLE in ["master", "standalone"]:
         # Start a new thread to run the replica real-time synchronization
-        thread_replica = Thread(target=mongodb_service.start_replication, args=(db_name, collection_name, upsert_key))
+        thread_replica = Thread(target=mongodb_service.start_replication, args=(db_name, collection_name))
         thread_replica.start()
         if ROLE == "master":
             # Broadcast to all workers to start full sync
