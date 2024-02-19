@@ -7,6 +7,7 @@ import threading
 import subprocess
 from dotenv import load_dotenv
 from multiprocessing import Manager
+from memory_profiler import profile
 from pymongo import MongoClient, UpdateOne
 from concurrent.futures import ThreadPoolExecutor
 
@@ -17,7 +18,8 @@ class MongoDBService:
         self.load_env_vars()
         self.init_mongo_connections()
         self.init_document_processing()
-
+    
+    @profile
     def load_env_vars(self):
         load_dotenv()
         VM_WORKER_LIST = os.getenv('VM_WORKER_LIST')
@@ -30,7 +32,8 @@ class MongoDBService:
             self.machine_id = "master-0"
         self.max_workers = int(os.getenv('MAX_WORKERS', 1))
         self.percentage = float(os.getenv('PERCENTAGE', 0.2))
-
+    
+    @profile
     def init_mongo_connections(self):
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
         uri2 = os.getenv('MONGO_CONNECTION_STRING_2') or self.build_mongo_uri('MONGO_HOSTS_2', 'MONGO_OPTS_2')
@@ -41,28 +44,34 @@ class MongoDBService:
 
     def build_mongo_uri(self, hosts_env_var, opts_env_var):
         return f"mongodb://{os.getenv('MONGO_USER')}:{os.getenv('MONGO_PASSWORD')}@{os.getenv(hosts_env_var)}/?{os.getenv(opts_env_var)}"
-
+    
+    @profile
     def init_document_processing(self):
         self.total_docs = 0
         self.processed_docs = 0
         self.processed_docs_lock = threading.Lock()
     
+    @profile
     def get_collection(self, db_name, collection_name, client):
         db = client[db_name]
         collection = db[collection_name]
         return collection
     
+    @profile
     def close_connections(self):
         self.syncSrc.close()
         self.syncDst.close()
     
+    @profile
     def calculate_batch_size(self, total_docs):
         return math.ceil((int(total_docs * self.percentage) // 100) / self.max_workers)
     
+    @profile
     def calculate_sleep_time(self):
         base_sleep_time = min(self.max_workers, 60)
         return random.uniform((base_sleep_time / 2) / self.total_machines, base_sleep_time)
     
+    @profile
     def get_processed_batches(self, batch_file):
         manager = Manager()
         processed_batches = manager.list()
@@ -71,9 +80,11 @@ class MongoDBService:
                 processed_batches.extend([int(line.strip()) for line in f])
         return processed_batches
     
+    @profile
     def fetch_documents(self, i, batch_size, session):
         return self.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
     
+    @profile
     def build_operations(self, i, cursor, upsert_key):
         operations = []
         num_ids = 0
@@ -86,6 +97,7 @@ class MongoDBService:
             logger.debug(f'[{threading.current_thread().name}] ({i}): Upsert document with _id: {doc["_id"]}')
         return operations, num_ids
     
+    @profile
     def write_documents(self, i, operations, batch_file, num_ids):
         if operations:
             try:
@@ -98,6 +110,7 @@ class MongoDBService:
                 logger.error(f'[{threading.current_thread().name}] ({i}): ERROR in bulk_write: {e}')
                 raise
 
+    @profile
     def log_and_sleep(self, i, operations, num_ids, read_time, write_time, sleep_time):
         progress = self.sync_status_progress().split('%')[0]
         logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {round(read_time, 3)}s. Written {num_ids} docs in {round(write_time, 3)}s. Progress: {progress}%')
@@ -109,12 +122,14 @@ class MongoDBService:
             logger.warn(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {read_sleep_time} seconds...")
             time.sleep(read_sleep_time)
 
+    @profile
     def sync_status_progress(self):
         total_docs_per_machine = self.total_docs / self.total_machines
         progress = round((self.processed_docs / total_docs_per_machine) * 100, 2)
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
+    @profile
     def process_batch(self, i, batch_size, batch_file, upsert_key=None):
         logger.debug(f'[{threading.current_thread().name}] ({i}): Start batch')
         sleep_time = self.calculate_sleep_time()
@@ -142,6 +157,7 @@ class MongoDBService:
                     cursor.close()
                 session.end_session()
 
+    @profile
     def process_batches(self, batch_size, batch_file, start_batch, end_batch, upsert_key=None):
         parent_batches = math.ceil(self.total_docs / batch_size)
         logger.info(f'Processing batches {start_batch}-{end_batch} with batch size is {batch_size}')
@@ -163,6 +179,7 @@ class MongoDBService:
 
         logger.info(f'Processed up to batch {end_batch}')
 
+    @profile
     def compare_and_update(self, db_name=None, collection_name=None):
         collections_to_sync = []
         if db_name is not None and collection_name is not None:
@@ -199,6 +216,7 @@ class MongoDBService:
                 collections_to_sync.append((self.db_name, self.collection_name))
         return collections_to_sync
 
+    @profile
     def sync_collection(self, db_name=None, collection_name=None, upsert_key=None):
         for db_name, collection_name in self.compare_and_update(db_name, collection_name):
             self.db_name = db_name
@@ -220,6 +238,7 @@ class MongoDBService:
             logger.info(f'[{self.machine_id}] Sync ended for {self.db_name}.{self.collection_name}. Closed connections to databases and exiting...')
         self.close_connections()
     
+    @profile
     def start_replication(self, db_name=None, collection_name=None):
         self.executor = None
         self.futures = []
@@ -228,12 +247,14 @@ class MongoDBService:
         self.executor = ThreadPoolExecutor(max_workers=total_collections_to_replicate)
         self.futures = [self.executor.submit(self.replicate_changes, db_name, collection_name) for db_name, collection_name in collections_to_replicate]
     
+    @profile
     def stop_replication(self):
         for future in self.futures:
             future.cancel()
         if self.executor:
             self.executor.shutdown()
 
+    @profile
     def replicate_changes(self, db_name, collection_name):
         self.db_name = db_name
         self.collection_name = collection_name
