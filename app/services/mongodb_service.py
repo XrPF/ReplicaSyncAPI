@@ -21,9 +21,13 @@ class MongoDBService:
     def load_env_vars(self):
         load_dotenv()
         VM_WORKER_LIST = os.getenv('VM_WORKER_LIST')
+        ROLE = os.getenv('ROLE')
         split_workers = VM_WORKER_LIST.split(',') if VM_WORKER_LIST else []
         self.total_machines = len(split_workers)
-        self.machine_id = int(os.getenv('VM_WORKER_ID'))
+        if ROLE != 'master':
+            self.machine_id = int(os.getenv('VM_WORKER_ID'))
+        else:
+            self.machine_id = "master-0"
         self.max_workers = int(os.getenv('MAX_WORKERS', 1))
         self.percentage = float(os.getenv('PERCENTAGE', 0.2))
 
