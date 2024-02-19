@@ -4,3 +4,4 @@ python-dotenv==0.15.0
 python-snappy==0.6.0
 zstandard==0.15.2
 Werkzeug==2.2.2
+requests==2.22.0
