@@ -6,4 +6,3 @@ zstandard==0.15.2
 Werkzeug==2.2.2
 requests==2.22.0
 memory-profiler==0.61.0
-```
