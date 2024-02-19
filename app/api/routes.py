@@ -1,3 +1,5 @@
+import os
+import requests
 from flask import Blueprint, request
 from app.services.mongodb_service import MongoDBService
 from threading import Thread
@@ -5,34 +7,81 @@ from threading import Thread
 api_blueprint = Blueprint('api', __name__)
 mongodb_service = MongoDBService()
 
+ROLE = os.getenv("ROLE")
+VM_WORKER_LIST = os.getenv("VM_WORKER_LIST")
+WORKERS = [f'http://{vm}' for vm in VM_WORKER_LIST.split(',')]
+
 @api_blueprint.route('/sync', methods=['POST'])
 def sync_data():
     data = request.get_json()
     db_name = data.get('db_name', None)
     collection_name = data.get('collection_name', None)
     upsert_key = data.get('upsert_key', None)
+    
+    if ROLE in ["worker", "standalone"]:
+        # Start a new thread to run the data synchronization
+        thread_sync = Thread(target=mongodb_service.sync_collection, args=(db_name, collection_name, upsert_key))
+        thread_sync.start()
 
-    # Start a new thread to run the data synchronization
-    thread = Thread(target=mongodb_service.compare_and_update, args=(db_name, collection_name, upsert_key))
-    thread.start()
+    elif ROLE == "master":
+        for worker in WORKERS:
+            requests.post(f'{worker}/sync', json=data)
 
-    return {"message": "Waking up data synchronization processes"}, 202
+    return {"message": "Waking up lazy workers to start synchronization processes"}, 202
+
+@api_blueprint.route('/fullSync', methods=['POST'])
+def full_sync_data():
+    data = request.get_json()
+    db_name = data.get('db_name', None)
+    collection_name = data.get('collection_name', None)
+    upsert_key = data.get('upsert_key', None)
+
+    if ROLE in ["worker", "standalone"]:
+        # Start a new thread to run the data synchronization
+        thread_sync = Thread(target=mongodb_service.sync_collection, args=(db_name, collection_name, upsert_key, True))
+        thread_sync.start()
+    elif ROLE in ["master", "standalone"]:
+        # Start a new thread to run the replica real-time synchronization
+        thread_replica = Thread(target=mongodb_service.start_replication, args=(db_name, collection_name, upsert_key))
+        thread_replica.start()
+        if ROLE == "master":
+            # Broadcast to all workers to start full sync
+            for worker in WORKERS:
+                requests.post(f'{worker}/fullSync', json=data)
+
+    return {"message": "Master has taken the whip, waking up scared workers to start synchronization processes"}, 202
 
 @api_blueprint.route('/replicate', methods=['POST'])
-def replicate_data():
+def start_replicate_data():
     data = request.get_json()
     db_name = data.get('db_name', None)
     collection_name = data.get('collection_name', None)
 
-    # Start a new thread to run the data synchronization
-    thread = Thread(target=mongodb_service.replicate_changes, args=(db_name, collection_name))
-    thread.start()
+    if ROLE in ["master", "standalone"]:
+        # Start a new thread to run the replica real-time synchronization
+        thread_replica = Thread(target=mongodb_service.start_replication, args=(db_name, collection_name))
+        thread_replica.start()
 
-    return {"message": "Waking up data replication process"}, 202
+    return {"message": "Master has taken the control, Real-Time-Replication workers waking up"}, 202
 
+@api_blueprint.route('/killReplica', methods=['POST'])
+def stop_replicate_data():
+    if ROLE in ["master", "standalone"]:
+        # Start a new thread to run the replica real-time synchronization
+        thread_replica = Thread(target=mongodb_service.stop_replication)
+        thread_replica.start()
+
+    return {"message": "Master is killing Real-Time-Replication workers"}, 202
 
 @api_blueprint.route('/status', methods=['GET'])
 def sync_status():
-    progress = mongodb_service.sync_status_progress()
+    if ROLE in ["worker", "standalone"]:
+        progress = mongodb_service.sync_status_progress()
+    
+    elif ROLE == "master":
+        progress = {}
+        for worker in WORKERS:
+            response = requests.get(f'{worker}/status')
+            progress.update(response.json().get('progress'))
 
     return {"progress": progress}, 200
