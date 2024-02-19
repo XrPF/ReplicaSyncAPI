@@ -149,7 +149,12 @@ class MongoDBService:
         last_processed_batch = -1
         if os.path.exists(batch_file):
             with open(batch_file, 'r') as f:
-                last_processed_batch = int(f.read().strip())
+                lines = f.read().splitlines()
+                if lines:
+                    try:
+                        last_processed_batch = int(lines[-1])  # get the last line
+                    except ValueError:
+                        logger.error(f"Cannot convert {lines[-1]} to integer")
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
