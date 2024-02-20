@@ -103,10 +103,10 @@ class MongoDBService:
         logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {round(read_time, 3)}s. Written {num_ids} docs in {round(write_time, 3)}s. Progress: {progress}%')
         if write_time < read_time:
             if write_time * 2 < read_time:
-                 read_sleep_time = random.uniform(read_time + sleep_time, read_time * 2 + sleep_time)
+                 read_sleep_time = random.uniform(read_time, read_time * 2)
             else:
-                read_sleep_time = random.uniform(read_time, read_time * 2)
-            logger.warn(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {read_sleep_time} seconds...")
+                read_sleep_time = random.uniform(read_time + sleep_time, read_time * 2 + sleep_time)
+            logger.warn(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {round(read_sleep_time, 2)} seconds...")
             time.sleep(read_sleep_time)
 
     def sync_status_progress(self):
