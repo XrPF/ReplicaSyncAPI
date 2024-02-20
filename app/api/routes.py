@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 from flask import Blueprint, request
 from app.services.mongodb_service import MongoDBService
@@ -77,11 +78,16 @@ def stop_replicate_data():
 def sync_status():
     if ROLE in ["worker", "standalone"]:
         progress = mongodb_service.sync_status_progress()
-    
+        if isinstance(progress, str): 
+            progress = json.loads(progress)
+
     elif ROLE == "master":
         progress = {}
         for worker in WORKERS:
             response = requests.get(f'{worker}/status')
-            progress.update(response.json().get('progress'))
+            worker_progress = response.json().get('progress')
+            if isinstance(worker_progress, str):
+                worker_progress = json.loads(worker_progress)
+            progress.update(worker_progress)
 
     return {"progress": progress}, 200
