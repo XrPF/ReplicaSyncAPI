@@ -1,8 +1,10 @@
 import os
 import time
 import math
+import psutil
 import random
 import logging
+import objgraph
 import threading
 from dotenv import load_dotenv
 from multiprocessing import Manager
@@ -115,11 +117,14 @@ class MongoDBService:
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
+    @profile
     def process_batch(self, i, batch_size, batch_file, upsert_key=None):
         logger.debug(f'[{threading.current_thread().name}] ({i}): Start batch')
         sleep_time = self.calculate_sleep_time()
         logger.debug(f'[{threading.current_thread().name}] ({i}): Sleeping for {round(sleep_time, 1)} seconds...')
         time.sleep(sleep_time)
+        process = psutil.Process(os.getpid())
+        logger.info(f'[{threading.current_thread().name}] ({i}): Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
 
         with self.syncSrc.start_session() as session:
             cursor = None
@@ -142,11 +147,15 @@ class MongoDBService:
                 if cursor:
                     cursor.close()
                 session.end_session()
+        
+        process = psutil.Process(os.getpid())
+        logger.info(f'[{threading.current_thread().name}] ({i}): Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
 
+    @profile
     def process_batches(self, batch_size, batch_file, start_batch, end_batch, upsert_key=None):
         parent_batches = math.ceil(self.total_docs / batch_size)
-        logger.info(f'Processing batches {start_batch}-{end_batch} with batch size is {batch_size}')
-
+        process = psutil.Process(os.getpid())
+        logger.info(f'Processing batches {start_batch}-{end_batch} with batch size is {batch_size}. Memory usage: {process.memory_info().rss / 1024 ** 2} MB')
         last_processed_batch = -1
         if os.path.exists(batch_file):
             with open(batch_file, 'r') as f:
@@ -156,6 +165,9 @@ class MongoDBService:
                         last_processed_batch = int(lines[-1])  # get the last line
                     except ValueError:
                         logger.error(f"Cannot convert {lines[-1]} to integer")
+        
+        process = psutil.Process(os.getpid())
+        logger.info(f'[{self.machine_id}] Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
@@ -164,7 +176,7 @@ class MongoDBService:
 
         logger.info(f'Processed up to batch {end_batch}')
 
-    def compare_and_update(self, db_name=None, collection_name=None):
+    def target_dbs_collections(self, db_name=None, collection_name=None):
         collections_to_sync = []
         if db_name is not None and collection_name is not None:
             self.db_name = db_name
@@ -200,8 +212,11 @@ class MongoDBService:
                 collections_to_sync.append((self.db_name, self.collection_name))
         return collections_to_sync
 
+    @profile
     def sync_collection(self, db_name=None, collection_name=None, upsert_key=None):
-        for db_name, collection_name in self.compare_and_update(db_name, collection_name):
+        process = psutil.Process(os.getpid())
+        logger.info(f'[{self.machine_id}] Waking up lazy workers with {process.memory_info().rss / 1024 ** 2} MB of memory...')        
+        for db_name, collection_name in self.target_dbs_collections(db_name, collection_name):
             self.db_name = db_name
             self.collection_name = collection_name
             batch_file=f'/tmp/{self.db_name}_{self.collection_name}_batch.txt'
@@ -215,16 +230,21 @@ class MongoDBService:
             start_batch = (self.machine_id - 1) * batches_per_machine
             end_batch = min(start_batch + batches_per_machine, parent_batches)
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
+            process = psutil.Process(os.getpid())
+            logger.info(f'[{self.machine_id}] Memory usage: {process.memory_info().rss / 1024 ** 2} MB')
+            logger.info(f'[{self.machine_id}] Top 10 types of objects consuming memory: {objgraph.most_common_types(limit=10)}')
             self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
             if os.path.exists(batch_file):
                 os.remove(batch_file)
             logger.info(f'[{self.machine_id}] Sync ended for {self.db_name}.{self.collection_name}. Closed connections to databases and exiting...')
         self.close_connections()
+        objgraph.show_refs([self], filename='/opt/replicator/mongo_sync_refs.png')
+
     
     def start_replication(self, db_name=None, collection_name=None):
         self.executor = None
         self.futures = []
-        collections_to_replicate = self.compare_and_update(db_name, collection_name)
+        collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
         total_collections_to_replicate = len(collections_to_replicate)
         self.executor = ThreadPoolExecutor(max_workers=total_collections_to_replicate)
         self.futures = [self.executor.submit(self.replicate_changes, db_name, collection_name) for db_name, collection_name in collections_to_replicate]
