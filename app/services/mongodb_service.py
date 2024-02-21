@@ -88,7 +88,8 @@ class MongoDBService:
             logger.debug(f'[{threading.current_thread().name}] ({i}): Upsert document with _id: {doc["_id"]}')
         return operations, num_ids
     
-    def write_documents(self, i, operations, batch_file, num_ids):
+#    def write_documents(self, i, operations, batch_file, num_ids):
+    def write_documents(self, i, operations, num_ids):
         if operations:
             try:
                 self.coll_dst.bulk_write(operations)
@@ -118,7 +119,8 @@ class MongoDBService:
         return f'{progress}% [{progress_bar}]'
     
     @profile
-    def process_batch(self, i, batch_size, batch_file, upsert_key=None):
+#    def process_batch(self, i, batch_size, batch_file, upsert_key=None):
+    def process_batch(self, i, batch_size, upsert_key=None):
         logger.debug(f'[{threading.current_thread().name}] ({i}): Start batch')
         sleep_time = self.calculate_sleep_time()
         logger.debug(f'[{threading.current_thread().name}] ({i}): Sleeping for {round(sleep_time, 1)} seconds...')
@@ -135,7 +137,8 @@ class MongoDBService:
                 end_time = time.time()
                 read_time = round(end_time - start_time, 3)
                 start_time = time.time()
-                self.write_documents(i, operations, batch_file, num_ids)
+#                self.write_documents(i, operations, batch_file, num_ids)
+                self.write_documents(i, operations, num_ids)
                 end_time = time.time()
                 write_time = round(end_time - start_time, 3)
                 del operations
@@ -173,8 +176,8 @@ class MongoDBService:
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
 #                if i > last_processed_batch:
-                executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
-
+#                executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
+                executor.submit(self.process_batch, i * batch_size, batch_size, upsert_key)
         logger.info(f'Processed up to batch {end_batch}')
 
     def target_dbs_collections(self, db_name=None, collection_name=None):
