@@ -20,10 +20,11 @@ def sync_data():
     db_name = data.get('db_name', None)
     collection_name = data.get('collection_name', None)
     upsert_key = data.get('upsert_key', None)
+    app = current_app._get_current_object()
     
     if ROLE in ["worker", "standalone"]:
         # Start a new thread to run the data synchronization
-        thread_sync = Thread(target=mongodb_service.sync_collection, args=(db_name, collection_name, upsert_key))
+        thread_sync = Thread(target=mongodb_service.sync_collection, args=(app, db_name, collection_name, upsert_key))
         thread_sync.start()
 
     elif ROLE == "master":
@@ -60,10 +61,11 @@ def start_replicate_data():
     data = request.get_json()
     db_name = data.get('db_name', None)
     collection_name = data.get('collection_name', None)
+    app = current_app._get_current_object()
 
     if ROLE in ["master", "standalone"]:
         # Start a new thread to run the replica real-time synchronization
-        thread_replica = Thread(target=mongodb_service.start_replication, args=(db_name, collection_name))
+        thread_replica = Thread(target=mongodb_service.start_replication, args=(app, db_name, collection_name))
         thread_replica.start()
 
     return {"message": "Master has taken the control, Real-Time-Replication workers waking up"}, 202
