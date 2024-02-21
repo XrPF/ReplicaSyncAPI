@@ -6,6 +6,7 @@ import threading
 import gc
 import tracemalloc
 import objgraph
+from flask import current_app
 from memory_profiler import profile
 from contextlib import closing
 from multiprocessing import Manager
@@ -26,27 +27,24 @@ class MongoDBCollectionService:
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
     def fetch_documents(self, i, batch_size, session):
-        tracemalloc.start()
-        result = self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
+        with current_app.app_context():
+            tracemalloc.start()
+            result = self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
         
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-            for stat in top_stats[:10]:
-                file.write(str(stat))
-                file.write('\n')
+            snapshot = tracemalloc.take_snapshot()
+            top_stats = snapshot.statistics('lineno')
+            with open(f'/var/log/ReplicaSyncAPI/tracemalloc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
+                for stat in top_stats[:10]:
+                    file.write(str(stat))
+                    file.write('\n')
 
-        with open(f'/var/log/ReplicaSyncAPI/objgraph_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-            objgraph.show_most_common_types(limit=10, file=file)
-
-        with open(f'/var/log/ReplicaSyncAPI/gc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-            for obj in gc.get_objects():
-                file.write(str(obj))
-                file.write('\n')
+            with open(f'/var/log/ReplicaSyncAPI/objgraph_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
+                objgraph.show_most_common_types(limit=10, file=file)
 
         return result
     
     def build_operations(self, i, cursor, upsert_key):
+#        with current_app.app_context():
         tracemalloc.start()
         operations = []
         num_ids = 0
@@ -62,16 +60,11 @@ class MongoDBCollectionService:
         top_stats = snapshot.statistics('lineno')
         with open(f'/var/log/ReplicaSyncAPI/tracemalloc_build_operations_{threading.current_thread().name}.log', 'w') as file:
             for stat in top_stats[:10]:
-                file.write(str(stat))
-                file.write('\n')
+               file.write(str(stat))
+               file.write('\n')
 
         with open(f'/var/log/ReplicaSyncAPI/objgraph_build_operations_{threading.current_thread().name}.log', 'w') as file:
             objgraph.show_most_common_types(limit=10, file=file)
-
-        with open(f'/var/log/ReplicaSyncAPI/gc_build_operations_{threading.current_thread().name}.log', 'w') as file:
-            for obj in gc.get_objects():
-                file.write(str(obj))
-                file.write('\n')
 
         return operations, num_ids                
     
@@ -157,11 +150,6 @@ class MongoDBCollectionService:
         with open(f'/var/log/ReplicaSyncAPI/objgraph_process_batch_{threading.current_thread().name}.log', 'w') as file:
             objgraph.show_most_common_types(limit=10, file=file)
 
-        with open(f'/var/log/ReplicaSyncAPI/gc_process_batch_{threading.current_thread().name}.log', 'w') as file:
-            for obj in gc.get_objects():
-                file.write(str(obj))
-                file.write('\n')
-
     @profile
     def process_batches(self, batch_size, start_batch, end_batch, upsert_key=None):
         tracemalloc.start()
@@ -182,8 +170,3 @@ class MongoDBCollectionService:
 
         with open('/var/log/ReplicaSyncAPI/objgraph_process_batches.log', 'w') as file:
             objgraph.show_most_common_types(limit=10, file=file)
-
-        with open('/var/log/ReplicaSyncAPI/gc_process_batches.log', 'w') as file:
-            for obj in gc.get_objects():
-                file.write(str(obj))
-                file.write('\n')
