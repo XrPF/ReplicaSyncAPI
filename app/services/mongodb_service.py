@@ -183,7 +183,7 @@ class MongoDBService:
                         
                         # Save the resume token
                         resume_token = change['_id']
-                        with open(f'~/resume_token_{self.db_name}_{self.collection_name}.txt', 'w') as f:
+                        with open(f'/opt/replicator/resume_token_{self.db_name}_{self.collection_name}.txt', 'w') as f:
                             f.write(str(resume_token))
             except ConnectionFailure:
                 logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Connection error, retrying...')
