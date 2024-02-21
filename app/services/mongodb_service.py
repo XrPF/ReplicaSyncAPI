@@ -98,7 +98,7 @@ class MongoDBService:
         return collections_to_sync
 
     @profile
-    def sync_collection(self, db_name=None, collection_name=None, upsert_key=None):
+    def sync_collection(self, app, db_name=None, collection_name=None, upsert_key=None):
         tracemalloc.start()
 
         mongodb_collections = MongoDBCollectionService(self)    
@@ -113,7 +113,7 @@ class MongoDBService:
             start_batch = (self.machine_id - 1) * batches_per_machine
             end_batch = min(start_batch + batches_per_machine, parent_batches)
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
-            mongodb_collections.process_batches(batch_size, start_batch, end_batch, upsert_key)
+            mongodb_collections.process_batches(app, batch_size, start_batch, end_batch, upsert_key)
             logger.info(f'[{self.machine_id}] Sync ended for {self.db_name}.{self.collection_name}. Closed connections to databases and exiting...')
             
             snapshot = tracemalloc.take_snapshot()

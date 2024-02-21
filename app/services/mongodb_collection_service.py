@@ -27,19 +27,19 @@ class MongoDBCollectionService:
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
     def fetch_documents(self, i, batch_size, session):
-        with current_app.app_context():
-            tracemalloc.start()
-            result = self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
-        
-            snapshot = tracemalloc.take_snapshot()
-            top_stats = snapshot.statistics('lineno')
-            with open(f'/var/log/ReplicaSyncAPI/tracemalloc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-                for stat in top_stats[:10]:
-                    file.write(str(stat))
-                    file.write('\n')
+#        with current_app.app_context():
+        tracemalloc.start()
+        result = self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
+       
+        snapshot = tracemalloc.take_snapshot()
+        top_stats = snapshot.statistics('lineno')
+        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
+            for stat in top_stats[:10]:
+                file.write(str(stat))
+                file.write('\n')
 
-            with open(f'/var/log/ReplicaSyncAPI/objgraph_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-                objgraph.show_most_common_types(limit=10, file=file)
+        with open(f'/var/log/ReplicaSyncAPI/objgraph_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
+            objgraph.show_most_common_types(limit=10, file=file)
 
         return result
     
@@ -112,53 +112,54 @@ class MongoDBCollectionService:
         return f'{progress}% [{progress_bar}]'
     
     @profile
-    def process_batch(self, i, batch_size, upsert_key=None):
-        tracemalloc.start()
-        sleep_time = self.calculate_sleep_time()
-        logger.debug(f'[{threading.current_thread().name}] ({i}): Waking up, drinking a cup of coffee. Wait me {round(sleep_time, 1)} seconds...')
-        time.sleep(sleep_time)
+    def process_batch(self, app, i, batch_size, upsert_key=None):
+        with app.app_context():
+            tracemalloc.start()
+            sleep_time = self.calculate_sleep_time()
+            logger.debug(f'[{threading.current_thread().name}] ({i}): Waking up, drinking a cup of coffee. Wait me {round(sleep_time, 1)} seconds...')
+            time.sleep(sleep_time)
 
-        with self.mongodb_service.syncSrc.start_session() as session:
-            cursor = None
-            try:
-                start_time = time.time()
-                cursor = self.fetch_documents(i, batch_size, session)
-                with closing([]) as operations:
-                    operations, num_ids = self.build_operations(i, cursor, upsert_key)
-                    end_time = time.time()
-                    read_time = round(end_time - start_time, 3)
+            with self.mongodb_service.syncSrc.start_session() as session:
+                cursor = None
+                try:
                     start_time = time.time()
-                    self.write_documents(i, operations, num_ids)
-                    end_time = time.time()
-                    write_time = round(end_time - start_time, 3)
-                    self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time)
-            except Exception as e:
-                logger.error(f'[{threading.current_thread().name}] ({i}): ERROR: {e}')
-                raise
-            finally:
-                if cursor:
-                    cursor.close()
-                session.end_session()
+                    cursor = self.fetch_documents(i, batch_size, session)
+                    with closing([]) as operations:
+                        operations, num_ids = self.build_operations(i, cursor, upsert_key)
+                        end_time = time.time()
+                        read_time = round(end_time - start_time, 3)
+                        start_time = time.time()
+                        self.write_documents(i, operations, num_ids)
+                        end_time = time.time()
+                        write_time = round(end_time - start_time, 3)
+                        self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time)
+                except Exception as e:
+                    logger.error(f'[{threading.current_thread().name}] ({i}): ERROR: {e}')
+                    raise
+                finally:
+                    if cursor:
+                        cursor.close()
+                    session.end_session()
 
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_process_batch_{threading.current_thread().name}.log', 'w') as file:
-            for stat in top_stats[:10]:
-                file.write(str(stat))
-                file.write('\n')
+            snapshot = tracemalloc.take_snapshot()
+            top_stats = snapshot.statistics('lineno')
+            with open(f'/var/log/ReplicaSyncAPI/tracemalloc_process_batch_{threading.current_thread().name}.log', 'w') as file:
+                for stat in top_stats[:10]:
+                    file.write(str(stat))
+                    file.write('\n')
 
-        with open(f'/var/log/ReplicaSyncAPI/objgraph_process_batch_{threading.current_thread().name}.log', 'w') as file:
-            objgraph.show_most_common_types(limit=10, file=file)
+            with open(f'/var/log/ReplicaSyncAPI/objgraph_process_batch_{threading.current_thread().name}.log', 'w') as file:
+                objgraph.show_most_common_types(limit=10, file=file)
 
     @profile
-    def process_batches(self, batch_size, start_batch, end_batch, upsert_key=None):
+    def process_batches(self, app, batch_size, start_batch, end_batch, upsert_key=None):
         tracemalloc.start()
         parent_batches = math.ceil(self.mongodb_service.total_docs / batch_size)
         last_processed_batch = math.floor((self.mongodb_service.processed_docs / self.mongodb_service.total_docs) * parent_batches)
         with ThreadPoolExecutor(max_workers=self.mongodb_service.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
-                    executor.submit(self.process_batch, i * batch_size, batch_size, upsert_key)
+                    executor.submit(self.process_batch, app, i * batch_size, batch_size, upsert_key)
         logger.debug(f'Processed up to batch {end_batch}')
 
         snapshot = tracemalloc.take_snapshot()
