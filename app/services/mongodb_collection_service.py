@@ -27,15 +27,15 @@ class MongoDBCollectionService:
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
     def fetch_documents(self, i, batch_size, session):
-        tracemalloc.start()
+#        tracemalloc.start()
         result = self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
        
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-            for stat in top_stats[:10]:
-                file.write(str(stat))
-                file.write('\n')
+#        snapshot = tracemalloc.take_snapshot()
+#        top_stats = snapshot.statistics('lineno')
+#        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
+#            for stat in top_stats[:10]:
+#                file.write(str(stat))
+#                file.write('\n')
 
         with open(f'/var/log/ReplicaSyncAPI/objgraph_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
             objgraph.show_most_common_types(limit=10, file=file)
@@ -43,7 +43,7 @@ class MongoDBCollectionService:
         return result
     
     def build_operations(self, i, cursor, upsert_key):
-        tracemalloc.start()
+#        tracemalloc.start()
         operations = []
         num_ids = 0
         for doc in cursor:
@@ -54,12 +54,12 @@ class MongoDBCollectionService:
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
             logger.debug(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
 
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_build_operations_{threading.current_thread().name}.log', 'w') as file:
-            for stat in top_stats[:10]:
-               file.write(str(stat))
-               file.write('\n')
+#        snapshot = tracemalloc.take_snapshot()
+#        top_stats = snapshot.statistics('lineno')
+#        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_build_operations_{threading.current_thread().name}.log', 'w') as file:
+#            for stat in top_stats[:10]:
+#               file.write(str(stat))
+#               file.write('\n')
 
         with open(f'/var/log/ReplicaSyncAPI/objgraph_build_operations_{threading.current_thread().name}.log', 'w') as file:
             objgraph.show_most_common_types(limit=10, file=file)
@@ -67,7 +67,7 @@ class MongoDBCollectionService:
         return operations, num_ids                
     
     def write_documents(self, i, operations, num_ids):
-        tracemalloc.start()
+#        tracemalloc.start()
         if operations:
             try:
                 self.mongodb_service.coll_dst.bulk_write(operations)
@@ -77,20 +77,15 @@ class MongoDBCollectionService:
                 logger.error(f'[{threading.current_thread().name}] ({i}): ERROR in bulk_write: {e}')
                 raise
 
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_write_documents_{threading.current_thread().name}.log', 'w') as file:
-            for stat in top_stats[:10]:
-                file.write(str(stat))
-                file.write('\n')
+#        snapshot = tracemalloc.take_snapshot()
+#        top_stats = snapshot.statistics('lineno')
+#        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_write_documents_{threading.current_thread().name}.log', 'w') as file:
+#            for stat in top_stats[:10]:
+#                file.write(str(stat))
+#                file.write('\n')
 
         with open(f'/var/log/ReplicaSyncAPI/objgraph_write_documents_{threading.current_thread().name}.log', 'w') as file:
             objgraph.show_most_common_types(limit=10, file=file)
-
-        with open(f'/var/log/ReplicaSyncAPI/gc_write_documents_{threading.current_thread().name}.log', 'w') as file:
-            for obj in gc.get_objects():
-                file.write(str(obj))
-                file.write('\n')
 
     def log_and_sleep(self, i, num_ids, read_time, write_time, sleep_time):
         progress = self.sync_status_progress().split('%')[0]
@@ -135,7 +130,7 @@ class MongoDBCollectionService:
                     raise
                 finally:
                     if cursor:
-                        cursor.close()
+                        cursor.close()  
                     session.end_session()
 
             snapshot = tracemalloc.take_snapshot()
