@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from multiprocessing import Manager
 from memory_profiler import profile
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 from concurrent.futures import ThreadPoolExecutor
 from app.services.mongodb_collection_service import MongoDBCollectionService
 
@@ -154,28 +155,40 @@ class MongoDBService:
         collection_src = self.get_collection(self.db_name, self.collection_name, self.syncSrc)
         collection_dst = self.get_collection(self.db_name, self.collection_name, self.syncDst)
 
+        resume_token = None
+
         logger.info(f'[Real-Time-Replication] Starting to replicate changes for {self.db_name}.{self.collection_name}')
-        try:
-            with collection_src.watch() as stream:
-                for change in stream:
-                    operation_type = change['operationType']
-                    document_key = change['documentKey']
-                    logger.debug(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Change detected: {operation_type} {document_key}')
-                    if operation_type == 'insert':
-                        full_document = change['fullDocument']
-                        collection_dst.insert_one(full_document)
-                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Inserted document: {document_key}')
-                    elif operation_type == 'update':
-                        update_description = change['updateDescription']
-                        collection_dst.update_one(document_key, update_description)
-                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Updated document: {document_key}')
-                    elif operation_type == 'delete':
-                        collection_dst.delete_one(document_key)
-                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Deleted document: {document_key}')
-                    elif operation_type == 'replace':
-                        full_document = change['fullDocument']
-                        collection_dst.replace_one(document_key, full_document)
-                        logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Replaced document: {document_key}')
-        except Exception as e:
-            logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Error in replicate_changes: {e}')
-            raise
+        while True:
+            try:
+                with collection_src.watch(resume_after=resume_token) as stream:
+                    for change in stream:
+                        operation_type = change['operationType']
+                        document_key = change['documentKey']
+                        logger.debug(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Change detected: {operation_type} {document_key}')
+                        if operation_type == 'insert':
+                            full_document = change['fullDocument']
+                            collection_dst.insert_one(full_document)
+                            logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Inserted document: {document_key}')
+                        elif operation_type == 'update':
+                            update_description = change['updateDescription']
+                            collection_dst.update_one(document_key, update_description)
+                            logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Updated document: {document_key}')
+                        elif operation_type == 'delete':
+                            collection_dst.delete_one(document_key)
+                            logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Deleted document: {document_key}')
+                        elif operation_type == 'replace':
+                            full_document = change['fullDocument']
+                            collection_dst.replace_one(document_key, full_document)
+                            logger.info(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Replaced document: {document_key}')
+                        
+                        # Save the resume token
+                        resume_token = change['_id']
+                        with open(f'~/resume_token_{self.db_name}_{self.collection_name}.txt', 'w') as f:
+                            f.write(str(resume_token))
+            except ConnectionFailure:
+                logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Connection error, retrying...')
+                continue
+            except Exception as e:
+                logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Error in replicate_changes: {e}')
+                raise
+            break
