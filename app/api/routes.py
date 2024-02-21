@@ -3,10 +3,12 @@ import json
 import requests
 from flask import Blueprint, request
 from app.services.mongodb_service import MongoDBService
+from app.services.mongodb_service import MongoDBCollectionService
 from threading import Thread
 
 api_blueprint = Blueprint('api', __name__)
 mongodb_service = MongoDBService()
+mongodb_collection_service = MongoDBCollectionService(mongodb_service)
 
 ROLE = os.getenv("ROLE")
 VM_WORKER_LIST = os.getenv("VM_WORKER_LIST")
@@ -77,7 +79,7 @@ def stop_replicate_data():
 @api_blueprint.route('/status', methods=['GET'])
 def sync_status():
     if ROLE in ["worker", "standalone"]:
-        progress = mongodb_service.sync_status_progress()
+        progress = mongodb_collection_service.sync_status_progress()
         if isinstance(progress, str): 
             progress = json.loads(progress)
 
