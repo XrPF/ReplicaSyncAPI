@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 from app.services.mongodb_service import MongoDBService
 from app.services.mongodb_service import MongoDBCollectionService
 from threading import Thread
@@ -38,14 +38,15 @@ def full_sync_data():
     db_name = data.get('db_name', None)
     collection_name = data.get('collection_name', None)
     upsert_key = data.get('upsert_key', None)
+    app = current_app._get_current_object()
 
     if ROLE in ["worker", "standalone"]:
         # Start a new thread to run the data synchronization
-        thread_sync = Thread(target=mongodb_service.sync_collection, args=(db_name, collection_name, upsert_key))
+        thread_sync = Thread(target=mongodb_service.sync_collection, args=(app, db_name, collection_name, upsert_key))
         thread_sync.start()
     elif ROLE in ["master", "standalone"]:
         # Start a new thread to run the replica real-time synchronization
-        thread_replica = Thread(target=mongodb_service.start_replication, args=(db_name, collection_name))
+        thread_replica = Thread(target=mongodb_service.start_replication, args=(app, db_name, collection_name))
         thread_replica.start()
         if ROLE == "master":
             # Broadcast to all workers to start full sync
