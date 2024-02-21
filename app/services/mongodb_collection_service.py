@@ -27,7 +27,6 @@ class MongoDBCollectionService:
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
     def fetch_documents(self, i, batch_size, session):
-#        with current_app.app_context():
         tracemalloc.start()
         result = self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
        
@@ -44,7 +43,6 @@ class MongoDBCollectionService:
         return result
     
     def build_operations(self, i, cursor, upsert_key):
-#        with current_app.app_context():
         tracemalloc.start()
         operations = []
         num_ids = 0
@@ -124,15 +122,14 @@ class MongoDBCollectionService:
                 try:
                     start_time = time.time()
                     cursor = self.fetch_documents(i, batch_size, session)
-                    with closing([]) as operations:
-                        operations, num_ids = self.build_operations(i, cursor, upsert_key)
-                        end_time = time.time()
-                        read_time = round(end_time - start_time, 3)
-                        start_time = time.time()
-                        self.write_documents(i, operations, num_ids)
-                        end_time = time.time()
-                        write_time = round(end_time - start_time, 3)
-                        self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time)
+                    operations, num_ids = self.build_operations(i, cursor, upsert_key)
+                    end_time = time.time()
+                    read_time = round(end_time - start_time, 3)
+                    start_time = time.time()
+                    self.write_documents(i, operations, num_ids)
+                    end_time = time.time()
+                    write_time = round(end_time - start_time, 3)
+                    self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time)
                 except Exception as e:
                     logger.error(f'[{threading.current_thread().name}] ({i}): ERROR: {e}')
                     raise
