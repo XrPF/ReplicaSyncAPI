@@ -65,13 +65,13 @@ class MongoDBService:
         base_sleep_time = min(self.max_workers, 60)
         return random.uniform((base_sleep_time / 2) / self.total_machines, base_sleep_time)
     
-    def get_processed_batches(self, batch_file):
-        manager = Manager()
-        processed_batches = manager.list()
-        if os.path.exists(batch_file):
-            with open(batch_file, 'r') as f:
-                processed_batches.extend([int(line.strip()) for line in f])
-        return processed_batches
+#    def get_processed_batches(self, batch_file):
+#        manager = Manager()
+#        processed_batches = manager.list()
+#        if os.path.exists(batch_file):
+#            with open(batch_file, 'r') as f:
+#                processed_batches.extend([int(line.strip()) for line in f])
+#        return processed_batches
     
     def fetch_documents(self, i, batch_size, session):
         return self.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
@@ -92,8 +92,8 @@ class MongoDBService:
         if operations:
             try:
                 self.coll_dst.bulk_write(operations)
-                with open(batch_file, 'a') as f:
-                    f.write(f'{i}\n')
+#                with open(batch_file, 'a') as f:
+#                    f.write(f'{i}\n')
                 with self.processed_docs_lock:
                     self.processed_docs += num_ids
             except Exception as e:
@@ -101,8 +101,8 @@ class MongoDBService:
                 raise
 
     def log_and_sleep(self, i, num_ids, read_time, write_time, sleep_time):
-        progress = self.sync_status_progress().split('%')[0]
-        logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {round(read_time, 3)}s. Written {num_ids} docs in {round(write_time, 3)}s. Progress: {progress}%')
+#        progress = self.sync_status_progress().split('%')[0]
+#        logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {round(read_time, 3)}s. Written {num_ids} docs in {round(write_time, 3)}s. Progress: {progress}%')
         if write_time < read_time:
             if write_time * 2 < read_time:
                  read_sleep_time = random.uniform(read_time, read_time * 2)
@@ -123,8 +123,8 @@ class MongoDBService:
         sleep_time = self.calculate_sleep_time()
         logger.debug(f'[{threading.current_thread().name}] ({i}): Sleeping for {round(sleep_time, 1)} seconds...')
         time.sleep(sleep_time)
-        process = psutil.Process(os.getpid())
-        logger.info(f'[{threading.current_thread().name}] ({i}): Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
+#        process = psutil.Process(os.getpid())
+#        logger.info(f'[{threading.current_thread().name}] ({i}): Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
 
         with self.syncSrc.start_session() as session:
             cursor = None
@@ -148,31 +148,32 @@ class MongoDBService:
                     cursor.close()
                 session.end_session()
         
-        process = psutil.Process(os.getpid())
-        logger.info(f'[{threading.current_thread().name}] ({i}): Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
+#        process = psutil.Process(os.getpid())
+#        logger.info(f'[{threading.current_thread().name}] ({i}): Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
 
     @profile
-    def process_batches(self, batch_size, batch_file, start_batch, end_batch, upsert_key=None):
+#    def process_batches(self, batch_size, batch_file, start_batch, end_batch, upsert_key=None):
+    def process_batches(self, batch_size, start_batch, end_batch, upsert_key=None):
         parent_batches = math.ceil(self.total_docs / batch_size)
-        process = psutil.Process(os.getpid())
-        logger.info(f'Processing batches {start_batch}-{end_batch} with batch size is {batch_size}. Memory usage: {process.memory_info().rss / 1024 ** 2} MB')
-        last_processed_batch = -1
-        if os.path.exists(batch_file):
-            with open(batch_file, 'r') as f:
-                lines = f.read().splitlines()
-                if lines:
-                    try:
-                        last_processed_batch = int(lines[-1])  # get the last line
-                    except ValueError:
-                        logger.error(f"Cannot convert {lines[-1]} to integer")
+#        process = psutil.Process(os.getpid())
+#        logger.info(f'Processing batches {start_batch}-{end_batch} with batch size is {batch_size}. Memory usage: {process.memory_info().rss / 1024 ** 2} MB')
+#        last_processed_batch = -1
+#        if os.path.exists(batch_file):
+#            with open(batch_file, 'r') as f:
+#                lines = f.read().splitlines()
+#                if lines:
+#                    try:
+#                        last_processed_batch = int(lines[-1])  # get the last line
+#                    except ValueError:
+#                        logger.error(f"Cannot convert {lines[-1]} to integer")
         
-        process = psutil.Process(os.getpid())
-        logger.info(f'[{self.machine_id}] Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
+#        process = psutil.Process(os.getpid())
+#        logger.info(f'[{self.machine_id}] Top 10 types of objects consuming memory (Used: {process.memory_info().rss / 1024 ** 2} MB): {objgraph.most_common_types(limit=10)}')
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
-                if i > last_processed_batch:
-                    executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
+#                if i > last_processed_batch:
+                executor.submit(self.process_batch, i * batch_size, batch_size, batch_file, upsert_key)
 
         logger.info(f'Processed up to batch {end_batch}')
 
@@ -214,12 +215,12 @@ class MongoDBService:
 
     @profile
     def sync_collection(self, db_name=None, collection_name=None, upsert_key=None):
-        process = psutil.Process(os.getpid())
-        logger.info(f'[{self.machine_id}] Waking up lazy workers with {process.memory_info().rss / 1024 ** 2} MB of memory...')        
+#        process = psutil.Process(os.getpid())
+#        logger.info(f'[{self.machine_id}] Waking up lazy workers with {process.memory_info().rss / 1024 ** 2} MB of memory...')        
         for db_name, collection_name in self.target_dbs_collections(db_name, collection_name):
             self.db_name = db_name
             self.collection_name = collection_name
-            batch_file=f'/tmp/{self.db_name}_{self.collection_name}_batch.txt'
+#            batch_file=f'/tmp/{self.db_name}_{self.collection_name}_batch.txt'
             self.coll_src = self.get_collection(self.db_name, self.collection_name, self.syncSrc)
             self.coll_dst = self.get_collection(self.db_name, self.collection_name, self.syncDst)
             self.total_docs = self.coll_src.estimated_document_count()
@@ -230,15 +231,16 @@ class MongoDBService:
             start_batch = (self.machine_id - 1) * batches_per_machine
             end_batch = min(start_batch + batches_per_machine, parent_batches)
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
-            process = psutil.Process(os.getpid())
-            logger.info(f'[{self.machine_id}] Memory usage: {process.memory_info().rss / 1024 ** 2} MB')
-            logger.info(f'[{self.machine_id}] Top 10 types of objects consuming memory: {objgraph.most_common_types(limit=10)}')
-            self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
-            if os.path.exists(batch_file):
-                os.remove(batch_file)
+#            process = psutil.Process(os.getpid())
+#            logger.info(f'[{self.machine_id}] Memory usage: {process.memory_info().rss / 1024 ** 2} MB')
+#            logger.info(f'[{self.machine_id}] Top 10 types of objects consuming memory: {objgraph.most_common_types(limit=10)}')
+#            self.process_batches(batch_size, batch_file, start_batch, end_batch, upsert_key)
+            self.process_batches(batch_size, start_batch, end_batch, upsert_key)
+#            if os.path.exists(batch_file):
+#                os.remove(batch_file)
             logger.info(f'[{self.machine_id}] Sync ended for {self.db_name}.{self.collection_name}. Closed connections to databases and exiting...')
         self.close_connections()
-        objgraph.show_refs([self], filename='/opt/replicator/mongo_sync_refs.png')
+#        objgraph.show_refs([self], filename='/opt/replicator/mongo_sync_refs.png')
 
     
     def start_replication(self, db_name=None, collection_name=None):
