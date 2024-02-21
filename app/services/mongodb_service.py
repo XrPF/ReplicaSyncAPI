@@ -11,7 +11,7 @@ from multiprocessing import Manager
 from memory_profiler import profile
 from pymongo import MongoClient
 from concurrent.futures import ThreadPoolExecutor
-from mongodb_collection_service import MongoDBCollectionService
+from app.services.mongodb_collection_service import MongoDBCollectionService
 
 logger = logging.getLogger(__name__)
 
