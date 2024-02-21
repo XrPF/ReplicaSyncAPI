@@ -1,4 +1,5 @@
 import os
+import gc
 import time
 import math
 import psutil
@@ -19,7 +20,9 @@ class MongoDBService:
         self.load_env_vars()
         self.init_mongo_connections()
         self.init_document_processing()
-    
+        logger.info(f'[{self.machine_id}] ReplicaSyncAPI initialized. {self.max_workers} workers available. {self.total_machines} machines available.')
+        logger.info(f'[{self.machine_id}] Garbage collector is enabled: {gc.isenabled()}. Garbage collector threshold: {gc.get_threshold()}')
+
     def load_env_vars(self):
         load_dotenv()
         VM_WORKER_LIST = os.getenv('VM_WORKER_LIST')
@@ -118,7 +121,6 @@ class MongoDBService:
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
-    @profile
 #    def process_batch(self, i, batch_size, batch_file, upsert_key=None):
     def process_batch(self, i, batch_size, upsert_key=None):
         logger.debug(f'[{threading.current_thread().name}] ({i}): Start batch')
@@ -243,6 +245,7 @@ class MongoDBService:
 #                os.remove(batch_file)
             logger.info(f'[{self.machine_id}] Sync ended for {self.db_name}.{self.collection_name}. Closed connections to databases and exiting...')
         self.close_connections()
+        gc.collect()
 #        objgraph.show_refs([self], filename='/opt/replicator/mongo_sync_refs.png')
 
     
