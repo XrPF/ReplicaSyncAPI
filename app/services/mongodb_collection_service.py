@@ -27,23 +27,9 @@ class MongoDBCollectionService:
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
     def fetch_documents(self, i, batch_size, session):
-#        tracemalloc.start()
-        result = self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
-       
-#        snapshot = tracemalloc.take_snapshot()
-#        top_stats = snapshot.statistics('lineno')
-#        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-#            for stat in top_stats[:10]:
-#                file.write(str(stat))
-#                file.write('\n')
+        return self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
 
-        with open(f'/var/log/ReplicaSyncAPI/objgraph_fetch_documents_{threading.current_thread().name}.log', 'w') as file:
-            objgraph.show_most_common_types(limit=10, file=file)
-
-        return result
-    
     def build_operations(self, i, cursor, upsert_key):
-#        tracemalloc.start()
         operations = []
         num_ids = 0
         for doc in cursor:
@@ -54,20 +40,9 @@ class MongoDBCollectionService:
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
             logger.debug(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
 
-#        snapshot = tracemalloc.take_snapshot()
-#        top_stats = snapshot.statistics('lineno')
-#        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_build_operations_{threading.current_thread().name}.log', 'w') as file:
-#            for stat in top_stats[:10]:
-#               file.write(str(stat))
-#               file.write('\n')
-
-        with open(f'/var/log/ReplicaSyncAPI/objgraph_build_operations_{threading.current_thread().name}.log', 'w') as file:
-            objgraph.show_most_common_types(limit=10, file=file)
-
         return operations, num_ids                
     
     def write_documents(self, i, operations, num_ids):
-#        tracemalloc.start()
         if operations:
             try:
                 self.mongodb_service.coll_dst.bulk_write(operations)
@@ -76,16 +51,6 @@ class MongoDBCollectionService:
             except Exception as e:
                 logger.error(f'[{threading.current_thread().name}] ({i}): ERROR in bulk_write: {e}')
                 raise
-
-#        snapshot = tracemalloc.take_snapshot()
-#        top_stats = snapshot.statistics('lineno')
-#        with open(f'/var/log/ReplicaSyncAPI/tracemalloc_write_documents_{threading.current_thread().name}.log', 'w') as file:
-#            for stat in top_stats[:10]:
-#                file.write(str(stat))
-#                file.write('\n')
-
-        with open(f'/var/log/ReplicaSyncAPI/objgraph_write_documents_{threading.current_thread().name}.log', 'w') as file:
-            objgraph.show_most_common_types(limit=10, file=file)
 
     def log_and_sleep(self, i, num_ids, read_time, write_time, sleep_time):
         progress = self.sync_status_progress().split('%')[0]
@@ -107,7 +72,6 @@ class MongoDBCollectionService:
     @profile
     def process_batch(self, app, i, batch_size, upsert_key=None):
         with app.app_context():
-            tracemalloc.start()
             sleep_time = self.calculate_sleep_time()
             logger.debug(f'[{threading.current_thread().name}] ({i}): Waking up, drinking a cup of coffee. Wait me {round(sleep_time, 1)} seconds...')
             time.sleep(sleep_time)
@@ -132,16 +96,7 @@ class MongoDBCollectionService:
                     if cursor:
                         cursor.close()  
                     session.end_session()
-
-            snapshot = tracemalloc.take_snapshot()
-            top_stats = snapshot.statistics('lineno')
-            with open(f'/var/log/ReplicaSyncAPI/tracemalloc_process_batch_{threading.current_thread().name}.log', 'w') as file:
-                for stat in top_stats[:10]:
-                    file.write(str(stat))
-                    file.write('\n')
-
-            with open(f'/var/log/ReplicaSyncAPI/objgraph_process_batch_{threading.current_thread().name}.log', 'w') as file:
-                objgraph.show_most_common_types(limit=10, file=file)
+                    gc.collect()
 
     @profile
     def process_batches(self, app, batch_size, start_batch, end_batch, upsert_key=None):
