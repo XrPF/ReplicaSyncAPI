@@ -129,7 +129,7 @@ class MongoDBService:
             self.pool.terminate()
             self.pool.join()
 
-def start_replica_service(self, db_name, collection_name, uri1, uri2):
+def start_replica_service(db_name, collection_name, uri1, uri2):
     from .mongodb_replica_service import MongoDBReplicaService
     syncSrc = MongoClient(uri1)
     syncDst = MongoClient(uri2)
