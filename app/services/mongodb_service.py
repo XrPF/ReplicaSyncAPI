@@ -132,7 +132,7 @@ class MongoDBService:
 
     def replicate_changes(self, collection_src, collection_dst):
         db_name = collection_src.database.name
-        db_name = collection_src.name
+        collection_name = collection_src.name
 
         resume_token = None
 
