@@ -166,7 +166,7 @@ class MongoDBService:
                             f.write(str(resume_token))
             except ConnectionFailure:
                 logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Connection error, retrying...')
-                continue
+                time.sleep(1)
             except Exception as e:
                 logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Error in replicate_changes: {e}')
                 raise
