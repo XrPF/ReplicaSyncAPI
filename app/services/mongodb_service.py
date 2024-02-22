@@ -131,9 +131,5 @@ class MongoDBService:
 
 def start_replica_service(db_name, collection_name, uri1, uri2):
     from .mongodb_replica_service import MongoDBReplicaService
-    syncSrc = MongoClient(uri1)
-    syncDst = MongoClient(uri2)
-    replica_service = MongoDBReplicaService(syncSrc, syncDst)
+    replica_service = MongoDBReplicaService(uri1, uri2)
     replica_service.replicate_changes(db_name, collection_name)
-    syncSrc.close()
-    syncDst.close()

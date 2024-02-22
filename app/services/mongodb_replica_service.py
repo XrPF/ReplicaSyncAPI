@@ -2,10 +2,15 @@ import os
 import time
 import logging
 from multiprocessing import current_process
+from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from app.services.mongodb_service import MongoDBService
 
 class MongoDBReplicaService(MongoDBService):
+    def __init__(self, uri1, uri2):
+        self.syncSrc = MongoClient(uri1)
+        self.syncDst = MongoClient(uri2)
+
     def replicate_changes(self, db_name, collection_name):
         # Create a new logger for this thread
         thread_name = current_process().name
@@ -15,8 +20,8 @@ class MongoDBReplicaService(MongoDBService):
         handler = logging.FileHandler(f'{logger_name}.log')
         logger.addHandler(handler)
 
-        collection_src = self.get_collection(db_name, collection_name, self.syncSrc)
-        collection_dst = self.get_collection(db_name, collection_name, self.syncDst)
+        collection_src = self.get_collection(db_name, collection_name, syncSrc)
+        collection_dst = self.get_collection(db_name, collection_name, syncDst)
 
         token_file = f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt'
         if os.path.exists(token_file):
