@@ -120,8 +120,8 @@ class MongoDBService:
         collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
         total_collections_to_replicate = len(collections_to_replicate)
         self.executor = ThreadPoolExecutor(max_workers=total_collections_to_replicate)
-        self.futures = [self.executor.submit(self.replicate_changes, db_name, collection_name) for db_name, collection_name in collections_to_replicate]
-    
+        self.futures = [self.executor.submit(self.replicate_changes, db, collection) for db, collection in collections_to_replicate]  
+          
     def stop_replication(self):
         for future in self.futures:
             future.cancel()
