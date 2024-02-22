@@ -35,7 +35,7 @@ def sync_data():
 
 @api_blueprint.route('/fullSync', methods=['POST'])
 def full_sync_data():
-    data = request.get_json()
+    data = request.get_json() or {}
     db_name = data.get('db_name', None)
     collection_name = data.get('collection_name', None)
     upsert_key = data.get('upsert_key', None)
