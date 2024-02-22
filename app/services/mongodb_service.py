@@ -120,14 +120,14 @@ class MongoDBService:
         self.pool = Pool(processes=total_collections_to_replicate)
         collections_to_replicate = [(db_name, collection_name, self.syncSrc, self.syncDst)
                                     for db_name, collection_name in collections_to_replicate]
-        self.pool.starmap(self.start_replica_service, collections_to_replicate) 
-
-    def start_replica_service(self, db_name, collection_name, syncSrc, syncDst):
-        from .mongodb_replica_service import MongoDBReplicaService
-        replica_service = MongoDBReplicaService(syncSrc, syncDst)
-        replica_service.replicate_changes(db_name, collection_name)
+        self.pool.starmap(start_replica_service, collections_to_replicate) 
 
     def stop_replication(self):
         if self.pool:
             self.pool.terminate()
             self.pool.join()
+
+def start_replica_service(self, db_name, collection_name, syncSrc, syncDst):
+    from .mongodb_replica_service import MongoDBReplicaService
+    replica_service = MongoDBReplicaService(syncSrc, syncDst)
+    replica_service.replicate_changes(db_name, collection_name)
