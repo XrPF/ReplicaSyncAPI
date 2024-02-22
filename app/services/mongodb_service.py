@@ -1,14 +1,10 @@
 import os
 import gc
 import math
-import psutil
 import logging
-import objgraph
 import threading
-import tracemalloc
+import time
 from dotenv import load_dotenv
-from multiprocessing import Manager
-from memory_profiler import profile
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from concurrent.futures import ThreadPoolExecutor
@@ -98,10 +94,7 @@ class MongoDBService:
                 collections_to_sync.append((self.db_name, self.collection_name))
         return collections_to_sync
 
-    @profile
     def sync_collection(self, app, db_name=None, collection_name=None, upsert_key=None):
-        tracemalloc.start()
-
         mongodb_collections = MongoDBCollectionService(self)    
         for db_name, collection_name in self.target_dbs_collections(db_name, collection_name):
             self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc)
@@ -116,24 +109,9 @@ class MongoDBService:
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
             mongodb_collections.process_batches(app, batch_size, start_batch, end_batch, upsert_key)
             logger.info(f'[{self.machine_id}] Sync ended for {self.db_name}.{self.collection_name}. Closed connections to databases and exiting...')
-            
-            snapshot = tracemalloc.take_snapshot()
-            top_stats = snapshot.statistics('lineno')
-            with open('/var/log/ReplicaSyncAPI/tracemalloc.log', 'w') as file:
-                for stat in top_stats[:10]:
-                    file.write(str(stat))
-                    file.write('\n')
-
-            with open('/var/log/ReplicaSyncAPI/objgraph.log', 'w') as file:
-                objgraph.show_most_common_types(limit=10, file=file)
-
-            with open('/var/log/ReplicaSyncAPI/gc.log', 'w') as file:
-                for obj in gc.get_objects():
-                    file.write(str(obj))
-                    file.write('\n')
-
-        self.close_connections()
-        gc.collect()
+            self.close_connections()
+            time.sleep(self.max_workers)
+            gc.collect()
         return True
     
     def start_replication(self, app, db_name=None, collection_name=None):
