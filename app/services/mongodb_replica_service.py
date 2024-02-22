@@ -44,7 +44,12 @@ class MongoDBReplicaService(MongoDBService):
                                 collection_dst.insert_one(full_document)
                             elif operation_type == 'update':
                                 update_description = change['updateDescription']
-                                collection_dst.update_one(document_key, update_description)
+                                update_document = {}
+                                if 'updatedFields' in update_description:
+                                    update_document['$set'] = update_description['updatedFields']
+                                if 'removedFields' in update_description:
+                                    update_document['$unset'] = {field: "" for field in update_description['removedFields']}
+                                collection_dst.update_one(document_key, update_document, upsert=True)
                             elif operation_type == 'delete':
                                 collection_dst.delete_one(document_key)
                             elif operation_type == 'replace':
