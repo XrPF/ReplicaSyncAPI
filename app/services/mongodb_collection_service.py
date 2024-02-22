@@ -4,8 +4,6 @@ import random
 import logging
 import threading
 import gc
-import tracemalloc
-
 from pymongo import UpdateOne
 from concurrent.futures import ThreadPoolExecutor
 

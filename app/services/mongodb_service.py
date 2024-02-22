@@ -6,10 +6,9 @@ import threading
 import time
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from multiprocessing import Pool, current_process
-from pymongo.errors import ConnectionFailure
-from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Pool
 from app.services.mongodb_collection_service import MongoDBCollectionService
+from app.services.mongodb_replica_service import MongoDBReplicaService
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +92,7 @@ class MongoDBService:
                 self.collection_name = collection_name
                 logger.info(f'[{self.machine_id}] Added collection {self.db_name}.{self.collection_name}')
                 collections_to_sync.append((self.db_name, self.collection_name))
+        self.close_connections()
         return collections_to_sync
 
     def sync_collection(self, app, db_name=None, collection_name=None, upsert_key=None):
@@ -119,54 +119,15 @@ class MongoDBService:
         collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
         total_collections_to_replicate = len(collections_to_replicate)
         self.pool = Pool(processes=total_collections_to_replicate)
-        collections_to_replicate = [(self.get_collection(db_name, collection_name, self.syncSrc), 
-                                     self.get_collection(db_name, collection_name, self.syncDst)) 
+        collections_to_replicate = [(db_name, collection_name, self.syncSrc, self.syncDst)
                                     for db_name, collection_name in collections_to_replicate]
-        self.pool.starmap(self.replicate_changes, collections_to_replicate) 
+        self.pool.starmap(self.start_replica_service, collections_to_replicate) 
 
+    def start_replica_service(self, db_name, collection_name, syncSrc, syncDst):
+        replica_service = MongoDBReplicaService(syncSrc, syncDst)
+        replica_service.replicate_changes(db_name, collection_name)
 
     def stop_replication(self):
         if self.pool:
             self.pool.terminate()
             self.pool.join()
-
-    def replicate_changes(self, collection_src, collection_dst):
-        db_name = collection_src.database.name
-        collection_name = collection_src.name
-
-        resume_token = None
-
-        logger.info(f'[{current_process().name}] Starting to replicate changes for {db_name}.{collection_name}')
-        while True:
-            try:
-                with collection_src.watch(resume_after=resume_token) as stream:
-                    for change in stream:
-                        operation_type = change['operationType']
-                        document_key = change['documentKey']
-                        logger.debug(f'[{current_process().name}] ({db_name}.{collection_name}) Change detected: {operation_type} {document_key}')
-                        if operation_type == 'insert':
-                            full_document = change['fullDocument']
-                            collection_dst.insert_one(full_document)
-                            logger.info(f'[{current_process().name}] ({db_name}.{collection_name}) Inserted document: {document_key}')
-                        elif operation_type == 'update':
-                            update_description = change['updateDescription']
-                            collection_dst.update_one(document_key, update_description)
-                            logger.info(f'[{current_process().name}] ({db_name}.{collection_name}) Updated document: {document_key}')
-                        elif operation_type == 'delete':
-                            collection_dst.delete_one(document_key)
-                            logger.info(f'[{current_process().name}] ({db_name}.{collection_name}) Deleted document: {document_key}')
-                        elif operation_type == 'replace':
-                            full_document = change['fullDocument']
-                            collection_dst.replace_one(document_key, full_document)
-                            logger.info(f'[{current_process().name}] ({db_name}.{collection_name}) Replaced document: {document_key}')
-                        
-                        # Save the resume token
-                        resume_token = change['_id']
-                        with open(f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt', 'w') as f:
-                            f.write(str(resume_token))
-            except ConnectionFailure:
-                logger.error(f'[{current_process().name}] ({db_name}.{collection_name}) Connection error, retrying...')
-                time.sleep(1)
-            except Exception as e:
-                logger.error(f'[{current_process().name}] ({db_name}.{collection_name}) Error in replicate_changes: {e}')
-                raise
