@@ -114,6 +114,20 @@ class MongoDBService:
             gc.collect()
         return True
     
+    def start_replication(self, app, db_name=None, collection_name=None):
+        self.executor = None
+        self.futures = []
+        collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
+        total_collections_to_replicate = len(collections_to_replicate)
+        self.executor = ThreadPoolExecutor(max_workers=total_collections_to_replicate)
+        self.futures = [self.executor.submit(self.replicate_changes, db, collection) for db, collection in collections_to_replicate]  
+
+    def stop_replication(self):
+        for future in self.futures:
+            future.cancel()
+        if self.executor:
+            self.executor.shutdown()
+
     def replicate_changes(self, db_name, collection_name):
         collection_src = self.get_collection(db_name, collection_name, self.syncSrc)
         collection_dst = self.get_collection(db_name, collection_name, self.syncDst)
@@ -144,6 +158,7 @@ class MongoDBService:
                             collection_dst.replace_one(document_key, full_document)
                             logger.info(f'[{threading.current_thread().name}] ({db_name}.{collection_name}) Replaced document: {document_key}')
                         
+                        # Save the resume token
                         resume_token = change['_id']
                         with open(f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt', 'w') as f:
                             f.write(str(resume_token))
