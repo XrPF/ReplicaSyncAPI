@@ -121,7 +121,7 @@ class MongoDBService:
         total_collections_to_replicate = len(collections_to_replicate)
         self.executor = ThreadPoolExecutor(max_workers=total_collections_to_replicate)
         self.futures = [self.executor.submit(self.replicate_changes, db, collection) for db, collection in collections_to_replicate]  
-          
+
     def stop_replication(self):
         for future in self.futures:
             future.cancel()
@@ -170,4 +170,3 @@ class MongoDBService:
             except Exception as e:
                 logger.error(f'[Real-Time-Replication] ({self.db_name}.{self.collection_name}) Error in replicate_changes: {e}')
                 raise
-            break
