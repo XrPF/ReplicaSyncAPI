@@ -5,11 +5,7 @@ import logging
 import threading
 import gc
 import tracemalloc
-import objgraph
-from flask import current_app
-from memory_profiler import profile
-from contextlib import closing
-from multiprocessing import Manager
+
 from pymongo import UpdateOne
 from concurrent.futures import ThreadPoolExecutor
 
@@ -54,7 +50,7 @@ class MongoDBCollectionService:
 
     def log_and_sleep(self, i, num_ids, read_time, write_time, sleep_time):
         progress = self.sync_status_progress().split('%')[0]
-        logger.debug(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {round(read_time, 3)}s. Written {num_ids} docs in {round(write_time, 3)}s. Progress: {progress}%')
+        logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {round(read_time, 3)}s. Written {num_ids} docs in {round(write_time, 3)}s. Progress: {progress}%')
         if write_time < read_time:
             if write_time * 2 < read_time:
                  read_sleep_time = random.uniform(read_time, read_time * 2)
@@ -69,11 +65,10 @@ class MongoDBCollectionService:
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
-    @profile
     def process_batch(self, app, i, batch_size, upsert_key=None):
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
-            logger.debug(f'[{threading.current_thread().name}] ({i}): Waking up, drinking a cup of coffee. Wait me {round(sleep_time, 1)} seconds...')
+            logger.info(f'[{threading.current_thread().name}] ({i}): Waking up, drinking a cup of coffee. Wait me {round(sleep_time, 1)} seconds...')
             time.sleep(sleep_time)
 
             with self.mongodb_service.syncSrc.start_session() as session:
@@ -98,23 +93,11 @@ class MongoDBCollectionService:
                     session.end_session()
                     gc.collect()
 
-    @profile
     def process_batches(self, app, batch_size, start_batch, end_batch, upsert_key=None):
-        tracemalloc.start()
         parent_batches = math.ceil(self.mongodb_service.total_docs / batch_size)
         last_processed_batch = math.floor((self.mongodb_service.processed_docs / self.mongodb_service.total_docs) * parent_batches)
         with ThreadPoolExecutor(max_workers=self.mongodb_service.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
                     executor.submit(self.process_batch, app, i * batch_size, batch_size, upsert_key)
-        logger.debug(f'Processed up to batch {end_batch}')
-
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        with open('/var/log/ReplicaSyncAPI/tracemalloc_process_batches.log', 'w') as file:
-            for stat in top_stats[:10]:
-                file.write(str(stat))
-                file.write('\n')
-
-        with open('/var/log/ReplicaSyncAPI/objgraph_process_batches.log', 'w') as file:
-            objgraph.show_most_common_types(limit=10, file=file)
+        logger.info(f'Processed up to batch {end_batch}')
