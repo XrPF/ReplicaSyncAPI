@@ -118,7 +118,9 @@ class MongoDBService:
         collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
         total_collections_to_replicate = len(collections_to_replicate)
         self.pool = Pool(processes=total_collections_to_replicate)
-        collections_to_replicate = [(db_name, collection_name, self.syncSrc, self.syncDst)
+        uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
+        uri2 = os.getenv('MONGO_CONNECTION_STRING_2') or self.build_mongo_uri('MONGO_HOSTS_2', 'MONGO_OPTS_2')
+        collections_to_replicate = [(db_name, collection_name, uri1, uri2)
                                     for db_name, collection_name in collections_to_replicate]
         self.pool.starmap(start_replica_service, collections_to_replicate) 
 
@@ -127,7 +129,11 @@ class MongoDBService:
             self.pool.terminate()
             self.pool.join()
 
-def start_replica_service(self, db_name, collection_name, syncSrc, syncDst):
+def start_replica_service(self, db_name, collection_name, uri1, uri2):
     from .mongodb_replica_service import MongoDBReplicaService
+    syncSrc = MongoClient(uri1)
+    syncDst = MongoClient(uri2)
     replica_service = MongoDBReplicaService(syncSrc, syncDst)
     replica_service.replicate_changes(db_name, collection_name)
+    syncSrc.close()
+    syncDst.close()
