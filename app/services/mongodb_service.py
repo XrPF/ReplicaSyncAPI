@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 from multiprocessing import Pool
 from app.services.mongodb_collection_service import MongoDBCollectionService
-from app.services.mongodb_replica_service import MongoDBReplicaService
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +123,7 @@ class MongoDBService:
         self.pool.starmap(self.start_replica_service, collections_to_replicate) 
 
     def start_replica_service(self, db_name, collection_name, syncSrc, syncDst):
+        from .mongodb_replica_service import MongoDBReplicaService
         replica_service = MongoDBReplicaService(syncSrc, syncDst)
         replica_service.replicate_changes(db_name, collection_name)
 
