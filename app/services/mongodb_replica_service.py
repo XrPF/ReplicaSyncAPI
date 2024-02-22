@@ -20,8 +20,8 @@ class MongoDBReplicaService(MongoDBService):
         handler = logging.FileHandler(f'{logger_name}.log')
         logger.addHandler(handler)
 
-        collection_src = self.get_collection(db_name, collection_name, syncSrc)
-        collection_dst = self.get_collection(db_name, collection_name, syncDst)
+        collection_src = self.get_collection(db_name, collection_name, self.syncSrc)
+        collection_dst = self.get_collection(db_name, collection_name, self.syncDst)
 
         token_file = f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt'
         if os.path.exists(token_file):
