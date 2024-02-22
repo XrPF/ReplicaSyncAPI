@@ -134,6 +134,7 @@ class MongoDBService:
 
         self.close_connections()
         gc.collect()
+        return True
     
     def start_replication(self, app, db_name=None, collection_name=None):
         self.executor = None
