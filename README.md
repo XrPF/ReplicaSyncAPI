@@ -1,6 +1,6 @@
 # ReplicaSyncAPI
 
-ReplicaSyncAPI is a Python-based API that synchronizes data between two MongoDB replica sets. It reads data from one replica set, compares it with the data in the second replica set, and updates or inserts any differences into the second replica set.
+ReplicaSyncAPI is a Python-based API that synchronizes data between two MongoDB replica sets. It reads data from source replica set and upserts the documents to the dest replica set.
 
 ## Getting Started
 
@@ -33,7 +33,7 @@ cd ReplicaSyncAPI
 pip install -r requirements.txt
 ```
 
-4. Set up your environment variables in the .env file. Note that we should specify the "base" OPTS and the OPTS_REPLICA (it is required in order to use a separate connection pool for synchronization batch process and replication process):
+4. Set up your environment variables in the .env file:
 
 ```
 ROLE="worker" # master or worker in cluster mode, standalone in standalone mode
@@ -62,9 +62,25 @@ python -m app.main
 
 The application will start and wait for a /POST call in order to start synchronizing data between the two MongoDB replica sets.
 
-6. Make a /POST call to the API
+6. Make a /POST call to the API:
 ```
+# Just sync in batches <your_db_name>.<your_collection_name>
 curl -X POST -H "Content-Type: application/json" -d '{"db_name": "<your_db_name>", "collection_name": "<your_collection_name>"}' http://127.0.0.1:2717/sync
+
+# Just replicate (like will do a "normal" SECONDARY node in a replica set):
+curl -X POST -H "Content-Type: application/json" -d '{"db_name": "<your_db_name>", "collection_name": "<your_collection_name>"}' http://127.0.0.1:2717/replicate
+
+# Kill the replication progress:
+curl -X POST http://127.0.0.1:2717/killReplica
+
+# Both replicate and sync in batches in parallel multi-thread processing
+curl -X POST -H "Content-Type: application/json" -d '{"db_name": "<your_db_name>", "collection_name": "<your_collection_name>"}' http://127.0.0.1:2717/fullSync
+```
+Note: running on localhost/standalone mode target your IP or the IP where the API is running on. When running on cluster mode, you must target master only, it will wake up the lazy workers for you, no need to call them all.
+
+Also you can /GET the current running task with the next endpoint. If running on cluster mode, target master IP/hostname/url :
+```
+curl http://127.0.0.1:2717/status
 ```
 
 ## Running the tests
