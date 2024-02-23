@@ -24,13 +24,13 @@ class MongoDBCollectionService:
     def fetch_documents(self, i, batch_size, session):
         return self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
 
-    def build_operations(self, i, cursor, upsert_key, is_sharded=False):
+    def build_operations(self, i, cursor, upsert_key):
         operations = []
         num_ids = 0
         for doc in cursor:
             num_ids += 1
             update_key = {'_id': doc['_id']}
-            if is_sharded and upsert_key is not None:
+            if self.mongodb_service.is_sharded and upsert_key is not None:
                 update_key[upsert_key] = doc[upsert_key]
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
             logger.debug(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
