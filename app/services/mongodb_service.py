@@ -95,7 +95,6 @@ class MongoDBService:
                 self.collection_name = collection_name
                 logger.info(f'[{self.machine_id}] Added collection {self.db_name}.{self.collection_name}')
                 collections_to_sync.append((self.db_name, self.collection_name))
-        self.close_connections()
         return collections_to_sync
 
     def sync_collection(self, app, db_name=None, collection_name=None, upsert_key=None):
@@ -105,7 +104,7 @@ class MongoDBService:
             self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc)
             self.coll_dst = self.get_collection(db_name, collection_name, self.syncDst)
             self.total_docs = self.coll_src.estimated_document_count()
-            logger.info(f'[{self.machine_id}] ({self.db_name}) Estimated docs: {self.total_docs} in collection {self.collection_name}')
+            logger.info(f'[{self.machine_id}] ({db_name}) Estimated docs: {self.total_docs} in collection {collection_name}')
             batch_size = mongodb_collections.calculate_batch_size(self.total_docs)
             parent_batches = math.ceil(self.total_docs / batch_size)
             batches_per_machine = math.ceil(parent_batches / self.total_machines)
@@ -113,7 +112,7 @@ class MongoDBService:
             end_batch = min(start_batch + batches_per_machine, parent_batches)
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
             mongodb_collections.process_batches(app, batch_size, start_batch, end_batch, upsert_key)
-            logger.info(f'[{self.machine_id}] Sync ended for {self.db_name}.{self.collection_name}. Closed connections to databases and exiting...')
+            logger.info(f'[{self.machine_id}] Sync ended for {db_name}.{collection_name}. Closed connections to databases and exiting...')
             self.close_connections()
             time.sleep(self.max_workers)
             gc.collect()
@@ -122,6 +121,7 @@ class MongoDBService:
     def start_replication(self, app, db_name=None, collection_name=None):
         collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
         total_collections_to_replicate = len(collections_to_replicate)
+        self.close_connections()
         self.pool = Pool(processes=total_collections_to_replicate)
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
         uri2 = os.getenv('MONGO_CONNECTION_STRING_2') or self.build_mongo_uri('MONGO_HOSTS_2', 'MONGO_OPTS_2')
