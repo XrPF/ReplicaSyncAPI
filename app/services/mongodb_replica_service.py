@@ -3,6 +3,8 @@ import time
 import logging
 from multiprocessing import current_process
 from pymongo import MongoClient
+from bson import json_util
+import json
 from pymongo.errors import ConnectionFailure
 from app.services.mongodb_service import MongoDBService
 
@@ -24,9 +26,11 @@ class MongoDBReplicaService(MongoDBService):
         collection_dst = self.get_collection(db_name, collection_name, self.syncDst)
 
         token_file = f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt'
+
         if os.path.exists(token_file):
             with open(token_file, 'r') as f:
-                resume_token = f.read()
+                resume_token = json_util.loads(f.read())
+                resume_token = change['_id']
         else:
             resume_token = None
 
