@@ -21,6 +21,7 @@ class MongoDBReplicaService(MongoDBService):
         logger = logging.getLogger(logger_name)
         handler = logging.FileHandler(f'/var/log/ReplicaSyncAPI/{logger_name}.log')
         logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
 
         collection_src = self.get_collection(db_name, collection_name, self.syncSrc)
         collection_dst = self.get_collection(db_name, collection_name, self.syncDst)
