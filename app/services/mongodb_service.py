@@ -113,6 +113,7 @@ class MongoDBService:
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
             mongodb_collections.process_batches(app, batch_size, start_batch, end_batch, upsert_key)
             logger.info(f'[{self.machine_id}] Sync ended for {db_name}.{collection_name}. Closed connections to databases and exiting...')
+            self.processed_docs = 0
             self.close_connections()
             time.sleep(self.max_workers)
             gc.collect()

@@ -103,7 +103,9 @@ class MongoDBCollectionService:
 
     def process_batches(self, app, batch_size, start_batch, end_batch, upsert_key=None):
         parent_batches = math.ceil(self.mongodb_service.total_docs / batch_size)
-        last_processed_batch = math.floor((self.mongodb_service.processed_docs / self.mongodb_service.total_docs) * parent_batches)
+        last_processed_batch = 0
+        if self.mongodb_service.total_docs > 0:
+            last_processed_batch = math.floor((self.mongodb_service.processed_docs / self.mongodb_service.total_docs) * parent_batches)
         with ThreadPoolExecutor(max_workers=self.mongodb_service.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
