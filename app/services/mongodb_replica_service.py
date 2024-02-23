@@ -20,6 +20,9 @@ class MongoDBReplicaService(MongoDBService):
         logger_name = f'{thread_name}_{thread_id}_{db_name}_{collection_name}'
         logger = logging.getLogger(logger_name)
         handler = logging.FileHandler(f'/var/log/ReplicaSyncAPI/{logger_name}.log')
+        formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        handler.setFormatter(formatter)
+        handler.setLevel(logging.INFO)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
 

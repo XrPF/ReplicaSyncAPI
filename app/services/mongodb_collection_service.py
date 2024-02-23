@@ -55,7 +55,7 @@ class MongoDBCollectionService:
                  read_sleep_time = random.uniform(read_time, read_time * 2)
             else:
                 read_sleep_time = random.uniform(read_time + sleep_time, read_time * 2 + sleep_time)
-            logger.debug(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {round(read_sleep_time, 2)} seconds...")
+            logger.debug(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
             time.sleep(read_sleep_time)
 
     def sync_status_progress(self):
@@ -67,7 +67,7 @@ class MongoDBCollectionService:
     def process_batch(self, app, i, batch_size, upsert_key=None):
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
-            logger.info(f'[{threading.current_thread().name}] ({i}): Waking up, drinking a cup of coffee. Wait me {round(sleep_time, 1)} seconds...')
+            logger.debug(f'[{threading.current_thread().name}] ({i}): Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
             time.sleep(sleep_time)
 
             with self.mongodb_service.syncSrc.start_session() as session:
@@ -99,4 +99,4 @@ class MongoDBCollectionService:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
                     executor.submit(self.process_batch, app, i * batch_size, batch_size, upsert_key)
-        logger.info(f'Processed up to batch {end_batch}')
+        logger.debug(f'Processed up to batch {end_batch}')
