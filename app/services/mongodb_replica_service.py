@@ -49,6 +49,7 @@ class MongoDBReplicaService(MongoDBService):
                                     update_document['$set'] = update_description['updatedFields']
                                 if 'removedFields' in update_description:
                                     update_document['$unset'] = {field: "" for field in update_description['removedFields']}
+                                logger.info(f'[{thread_name}][{db_name}.{collection_name}] UpdateFields: {update_description['updatedFields']} RemovedFields: {update_description['removedFields']} UpdateDocument: {update_document}')
                                 collection_dst.update_one(document_key, update_document, upsert=True)
                             elif operation_type == 'delete':
                                 collection_dst.delete_one(document_key)
