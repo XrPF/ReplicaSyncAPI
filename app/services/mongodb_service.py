@@ -101,7 +101,7 @@ class MongoDBService:
     def sync_collection(self, app, db_name=None, collection_name=None, upsert_key=None):
         mongodb_collections = MongoDBCollectionService(self)    
         for db_name, collection_name in self.target_dbs_collections(db_name, collection_name):
-            self.is_sharded = self.is_sharded(db_name, collection_name)
+            self.coll_is_sharded = self.is_sharded(db_name, collection_name)
             self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc)
             self.coll_dst = self.get_collection(db_name, collection_name, self.syncDst)
             self.total_docs = self.coll_src.estimated_document_count()

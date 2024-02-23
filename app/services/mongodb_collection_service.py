@@ -39,7 +39,7 @@ class MongoDBCollectionService:
         for doc in cursor:
             num_ids += 1
             update_key = {'_id': doc['_id']}
-            if self.mongodb_service.is_sharded and upsert_key is not None:
+            if self.mongodb_service.coll_is_sharded and upsert_key is not None:
                 update_key[upsert_key] = doc[upsert_key]
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
             logger.debug(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
@@ -58,7 +58,7 @@ class MongoDBCollectionService:
 
     def log_and_sleep(self, i, num_ids, read_time, write_time, sleep_time):
         progress = self.sync_status_progress().split('%')[0]
-        logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {round(read_time, 3)}s. Written {num_ids} docs in {round(write_time, 3)}s. Progress: {progress}%')
+        logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {read_time}s. Written {num_ids} docs in {write_time}s. Progress: {progress}%')
         if write_time < read_time:
             if write_time * 2 < read_time:
                  read_sleep_time = random.uniform(read_time, read_time * 2)
@@ -86,11 +86,11 @@ class MongoDBCollectionService:
                     cursor = self.fetch_documents(i, batch_size, session)
                     operations, num_ids = self.build_operations(i, cursor, upsert_key)
                     end_time = time.time()
-                    read_time = round(end_time - start_time, 3)
+                    read_time = round(end_time - start_time, 1)
                     start_time = time.time()
                     self.write_documents(i, operations, num_ids)
                     end_time = time.time()
-                    write_time = round(end_time - start_time, 3)
+                    write_time = round(end_time - start_time, 1)
                     self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time)
                 except Exception as e:
                     logger.error(f'[{threading.current_thread().name}] ({i}): ERROR: {e}')
