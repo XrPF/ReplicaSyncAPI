@@ -17,7 +17,7 @@ class MongoDBReplicaService(MongoDBService):
         thread_id = current_process().pid
         logger_name = f'{thread_name}_{thread_id}_{db_name}_{collection_name}'
         logger = logging.getLogger(logger_name)
-        handler = logging.FileHandler(f'{logger_name}.log')
+        handler = logging.FileHandler(f'/var/log/ReplicaSyncAPI/{logger_name}.log')
         logger.addHandler(handler)
 
         collection_src = self.get_collection(db_name, collection_name, self.syncSrc)
