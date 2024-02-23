@@ -30,7 +30,6 @@ class MongoDBReplicaService(MongoDBService):
         if os.path.exists(token_file):
             with open(token_file, 'r') as f:
                 resume_token = json_util.loads(f.read())
-                resume_token = change['_id']
         else:
             resume_token = None
 
@@ -65,7 +64,7 @@ class MongoDBReplicaService(MongoDBService):
                             # Save the resume token
                             resume_token = change['_id']
                             with open(f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt', 'w') as f:
-                                f.write(str(resume_token))
+                                f.write(json_util.dumps(resume_token))
                             retry_delay = 1
                     break
                 except ConnectionFailure:
