@@ -14,7 +14,16 @@ class MongoDBCollectionService:
         self.mongodb_service = mongodb_service
 
     def calculate_batch_size(self, total_docs):
-        batch_size = math.ceil((int(total_docs * self.mongodb_service.percentage) // 100) / self.mongodb_service.max_workers)
+        if total_docs >= 1_000_000:
+            divisor = 100
+        elif 1_000 <= total_docs < 1_000_000:
+            divisor = 10
+        else:
+            divisor = 1
+
+        num_batches = (int(total_docs * self.mongodb_service.percentage) // divisor)
+        max_workers = min(self.mongodb_service.max_workers, num_batches)
+        batch_size = math.ceil(num_batches / max_workers)
         return max(batch_size, 1)
     
     def calculate_sleep_time(self):
