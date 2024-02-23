@@ -21,8 +21,8 @@ class MongoDBCollectionService:
         else:
             divisor = 1
 
-        num_batches = (int(total_docs * self.mongodb_service.percentage) // divisor)
-        max_workers = min(self.mongodb_service.max_workers, num_batches)
+        num_batches = max((int(total_docs * self.mongodb_service.percentage) // divisor), 1)
+        max_workers = max(min(self.mongodb_service.max_workers, num_batches), 1)
         batch_size = math.ceil(num_batches / max_workers)
         return max(batch_size, 1)
     
