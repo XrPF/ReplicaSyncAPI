@@ -142,6 +142,6 @@ class MongoDBService:
 
 def start_replica_service(db_name, collection_name, uri1, uri2):
     from .mongodb_replica_service import MongoDBReplicaService
-    prometheus_service = PrometheusService().getInstance()
+    prometheus_service = PrometheusService.getInstance()
     replica_service = MongoDBReplicaService(uri1, uri2, prometheus_service)
     replica_service.replicate_changes(db_name, collection_name)
