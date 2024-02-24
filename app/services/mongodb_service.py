@@ -16,7 +16,7 @@ class MongoDBService:
     def __init__(self):
         self.load_env_vars()
         self.init_mongo_connections()
-        self.init_document_processing()
+        self.processed_docs_lock = None
         self.prometheus_service = PrometheusService().getInstance()
         logger.info(f'[{self.machine_id}] ReplicaSyncAPI initialized. {self.max_workers} workers available. {self.total_machines} machines available.')
         logger.info(f'[{self.machine_id}] Garbage collector is enabled: {gc.isenabled()}. Garbage collector threshold: {gc.get_threshold()}')
@@ -48,7 +48,8 @@ class MongoDBService:
     def init_document_processing(self):
         self.total_docs = 0
         self.processed_docs = 0
-        self.processed_docs_lock = threading.Lock()
+        if self.processed_docs_lock is None:
+            self.processed_docs_lock = threading.Lock()
     
     def get_collection(self, db_name, collection_name, client):
         db = client[db_name]
@@ -100,7 +101,8 @@ class MongoDBService:
         return collections_to_sync
 
     def sync_collection(self, app, db_name=None, collection_name=None, upsert_key=None):
-        mongodb_collections = MongoDBCollectionService(self)    
+        self.init_document_processing()
+        mongodb_collections = MongoDBCollectionService(self)
         for db_name, collection_name in self.target_dbs_collections(db_name, collection_name):
             self.coll_is_sharded = self.is_sharded(db_name, collection_name)
             self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc)
@@ -129,7 +131,7 @@ class MongoDBService:
         self.prometheus_service.set_stream_active_threads('replica_sync_api_stream_forks', total_collections_to_replicate)
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
         uri2 = os.getenv('MONGO_CONNECTION_STRING_2') or self.build_mongo_uri('MONGO_HOSTS_2', 'MONGO_OPTS_2')
-        collections_to_replicate = [(db_name, collection_name, uri1, uri2, self.prometheus_service)
+        collections_to_replicate = [(db_name, collection_name, uri1, uri2)
                                     for db_name, collection_name in collections_to_replicate]
         self.pool.starmap(start_replica_service, collections_to_replicate) 
 
@@ -138,7 +140,8 @@ class MongoDBService:
             self.pool.terminate()
             self.pool.join()
 
-def start_replica_service(db_name, collection_name, uri1, uri2, prometheus_service):
+def start_replica_service(db_name, collection_name, uri1, uri2):
     from .mongodb_replica_service import MongoDBReplicaService
+    prometheus_service = PrometheusService().getInstance()
     replica_service = MongoDBReplicaService(uri1, uri2, prometheus_service)
     replica_service.replicate_changes(db_name, collection_name)
