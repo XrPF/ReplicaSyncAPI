@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 from multiprocessing import Pool
 from app.services.mongodb_collection_service import MongoDBCollectionService
+from app.services.prometheus_service import PrometheusService
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ class MongoDBService:
             start_batch = (self.machine_id - 1) * batches_per_machine
             end_batch = min(start_batch + batches_per_machine, parent_batches)
             logger.info(f'[{self.machine_id}] Batch size is {batch_size}. Parent batches: {parent_batches}. Batches per machine: {batches_per_machine}. Start batch: {start_batch}. End batch: {end_batch}')
-            mongodb_collections.process_batches(app, batch_size, start_batch, end_batch, upsert_key)
+            mongodb_collections.process_batches(app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key)
             logger.info(f'[{self.machine_id}] Sync ended for {db_name}.{collection_name}. Closed connections to databases and exiting...')
             self.processed_docs = 0
             self.close_connections()
@@ -120,10 +121,12 @@ class MongoDBService:
         return True
     
     def start_replication(self, app, db_name=None, collection_name=None):
+        prometheus_service = PrometheusService()
         collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
         total_collections_to_replicate = len(collections_to_replicate)
         self.close_connections()
         self.pool = Pool(processes=total_collections_to_replicate)
+        prometheus_service.set_stream_active_threads('replica_sync_api_stream_forks', total_collections_to_replicate)
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
         uri2 = os.getenv('MONGO_CONNECTION_STRING_2') or self.build_mongo_uri('MONGO_HOSTS_2', 'MONGO_OPTS_2')
         collections_to_replicate = [(db_name, collection_name, uri1, uri2)

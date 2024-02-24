@@ -8,6 +8,7 @@ from bson import json_util
 import json
 from pymongo.errors import ConnectionFailure
 from app.services.mongodb_service import MongoDBService
+from app.services.prometheus_service import PrometheusService
 
 class MongoDBReplicaService(MongoDBService):
     def __init__(self, uri1, uri2):
@@ -15,7 +16,6 @@ class MongoDBReplicaService(MongoDBService):
         self.syncDst = MongoClient(uri2)
 
     def replicate_changes(self, db_name, collection_name):
-        # Create a new logger for this thread
         thread_name = current_process().name
         thread_id = current_process().pid
         logger_name = f'{thread_name}_{thread_id}_{db_name}_{collection_name}'
@@ -40,6 +40,7 @@ class MongoDBReplicaService(MongoDBService):
 
         logger.info(f'[{thread_name}] Starting to replicate changes for {db_name}.{collection_name}')
         last_change_time = datetime.datetime.now()
+        prometheus_service = PrometheusService()
 
         while True:
             for _ in range(3):
@@ -67,8 +68,10 @@ class MongoDBReplicaService(MongoDBService):
                                 full_document = change['fullDocument']
                                 collection_dst.replace_one(document_key, full_document)
                             logger.info(f'[{thread_name}][{db_name}.{collection_name}] Operation: {operation_type} ID: {document_key}')
+                            
+                            prometheus_service.observe_stream_replication_latency(thread_name, db_name, collection_name, operation_type, (datetime.datetime.now() - last_change_time).total_seconds())
+                            prometheus_service.increment_stream_service_counter(thread_name, db_name, collection_name, operation_type)
 
-                            # Save the resume token
                             resume_token = change['_id']
                             with open(f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt', 'w') as f:
                                 f.write(json_util.dumps(resume_token))
@@ -79,8 +82,10 @@ class MongoDBReplicaService(MongoDBService):
                             logger.info(f'[{thread_name}][{db_name}.{collection_name}] No changes detected in the last 5 minutes')
                     break
                 except ConnectionFailure:
+                    prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'ConnectionFailure')
                     logger.error(f'[{thread_name}][{db_name}.{collection_name}] Connection error, retrying...')
                     time.sleep(retry_delay)
                     retry_delay *= 2
                 except Exception as e:
+                    prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'Exception')
                     logger.error(f'[{thread_name}][{db_name}.{collection_name}] Error in replicate_changes: {e}')
