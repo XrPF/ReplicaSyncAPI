@@ -1,6 +1,5 @@
 from flask import Flask
 from .api.routes import api_blueprint
-from .services.mongodb_service import MongoDBService
 import logging
 
 def create_app():
@@ -12,9 +11,6 @@ def create_app():
     handler.setLevel(logging.INFO)
     app.logger.setLevel(logging.INFO)
     app.logger.addHandler(handler)
-
     app.register_blueprint(api_blueprint)
-
-    MongoDBService()
 
     return app
