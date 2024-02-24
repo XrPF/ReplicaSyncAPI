@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+import datetime
 from multiprocessing import current_process
 from pymongo import MongoClient
 from bson import json_util
@@ -38,6 +39,8 @@ class MongoDBReplicaService(MongoDBService):
             resume_token = None
 
         logger.info(f'[{thread_name}] Starting to replicate changes for {db_name}.{collection_name}')
+        last_change_time = datetime.datetime.now()
+
         while True:
             for _ in range(3):
                 try:
@@ -70,6 +73,10 @@ class MongoDBReplicaService(MongoDBService):
                             with open(f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt', 'w') as f:
                                 f.write(json_util.dumps(resume_token))
                             retry_delay = 1
+
+                        elapsed_time = datetime.datetime.now() - last_change_time
+                        if elapsed_time > datetime.timedelta(minutes=5):
+                            logger.info(f'[{thread_name}][{db_name}.{collection_name}] No changes detected in the last 5 minutes')
                     break
                 except ConnectionFailure:
                     logger.error(f'[{thread_name}][{db_name}.{collection_name}] Connection error, retrying...')
