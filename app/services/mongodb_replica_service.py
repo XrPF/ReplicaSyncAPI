@@ -14,6 +14,7 @@ class MongoDBReplicaService(MongoDBService):
     def __init__(self, uri1, uri2):
         self.syncSrc = MongoClient(uri1)
         self.syncDst = MongoClient(uri2)
+        self.prometheus_service = PrometheusService()
 
     def replicate_changes(self, db_name, collection_name):
         thread_name = current_process().name
@@ -40,7 +41,6 @@ class MongoDBReplicaService(MongoDBService):
 
         logger.info(f'[{thread_name}] Starting to replicate changes for {db_name}.{collection_name}')
         last_change_time = datetime.datetime.now()
-        prometheus_service = PrometheusService()
 
         while True:
             for _ in range(3):
@@ -69,8 +69,8 @@ class MongoDBReplicaService(MongoDBService):
                                 collection_dst.replace_one(document_key, full_document)
                             logger.info(f'[{thread_name}][{db_name}.{collection_name}] Operation: {operation_type} ID: {document_key}')
                             
-                            prometheus_service.observe_stream_replication_latency(thread_name, db_name, collection_name, operation_type, (datetime.datetime.now() - last_change_time).total_seconds())
-                            prometheus_service.increment_stream_service_counter(thread_name, db_name, collection_name, operation_type)
+                            self.prometheus_service.observe_stream_replication_latency(thread_name, db_name, collection_name, operation_type, (datetime.datetime.now() - last_change_time).total_seconds())
+                            self.prometheus_service.increment_stream_service_counter(thread_name, db_name, collection_name, operation_type)
 
                             resume_token = change['_id']
                             with open(f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt', 'w') as f:
@@ -82,10 +82,10 @@ class MongoDBReplicaService(MongoDBService):
                             logger.info(f'[{thread_name}][{db_name}.{collection_name}] No changes detected in the last 5 minutes')
                     break
                 except ConnectionFailure:
-                    prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'ConnectionFailure')
+                    self.prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'ConnectionFailure')
                     logger.error(f'[{thread_name}][{db_name}.{collection_name}] Connection error, retrying...')
                     time.sleep(retry_delay)
                     retry_delay *= 2
                 except Exception as e:
-                    prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'Exception')
+                    self.prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'Exception')
                     logger.error(f'[{thread_name}][{db_name}.{collection_name}] Error in replicate_changes: {e}')
