@@ -17,6 +17,7 @@ class MongoDBService:
         self.load_env_vars()
         self.init_mongo_connections()
         self.init_document_processing()
+        self.prometheus_service = PrometheusService()
         logger.info(f'[{self.machine_id}] ReplicaSyncAPI initialized. {self.max_workers} workers available. {self.total_machines} machines available.')
         logger.info(f'[{self.machine_id}] Garbage collector is enabled: {gc.isenabled()}. Garbage collector threshold: {gc.get_threshold()}')
 
@@ -121,15 +122,14 @@ class MongoDBService:
         return True
     
     def start_replication(self, app, db_name=None, collection_name=None):
-        prometheus_service = PrometheusService()
         collections_to_replicate = self.target_dbs_collections(db_name, collection_name)
         total_collections_to_replicate = len(collections_to_replicate)
         self.close_connections()
         self.pool = Pool(processes=total_collections_to_replicate)
-        prometheus_service.set_stream_active_threads('replica_sync_api_stream_forks', total_collections_to_replicate)
+        self.prometheus_service.set_stream_active_threads('replica_sync_api_stream_forks', total_collections_to_replicate)
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
         uri2 = os.getenv('MONGO_CONNECTION_STRING_2') or self.build_mongo_uri('MONGO_HOSTS_2', 'MONGO_OPTS_2')
-        collections_to_replicate = [(db_name, collection_name, uri1, uri2)
+        collections_to_replicate = [(db_name, collection_name, uri1, uri2, self.prometheus_service)
                                     for db_name, collection_name in collections_to_replicate]
         self.pool.starmap(start_replica_service, collections_to_replicate) 
 
@@ -138,7 +138,7 @@ class MongoDBService:
             self.pool.terminate()
             self.pool.join()
 
-def start_replica_service(db_name, collection_name, uri1, uri2):
+def start_replica_service(db_name, collection_name, uri1, uri2, prometheus_service):
     from .mongodb_replica_service import MongoDBReplicaService
-    replica_service = MongoDBReplicaService(uri1, uri2)
+    replica_service = MongoDBReplicaService(uri1, uri2, prometheus_service)
     replica_service.replicate_changes(db_name, collection_name)
