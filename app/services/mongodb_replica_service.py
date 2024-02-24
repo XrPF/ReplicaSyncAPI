@@ -8,13 +8,12 @@ from bson import json_util
 import json
 from pymongo.errors import ConnectionFailure
 from app.services.mongodb_service import MongoDBService
-from app.services.prometheus_service import PrometheusService
 
 class MongoDBReplicaService(MongoDBService):
-    def __init__(self, uri1, uri2):
+    def __init__(self, uri1, uri2, prometheus_service):
         self.syncSrc = MongoClient(uri1)
         self.syncDst = MongoClient(uri2)
-        self.prometheus_service = PrometheusService()
+        self.prometheus_service = prometheus_service
 
     def replicate_changes(self, db_name, collection_name):
         thread_name = current_process().name
