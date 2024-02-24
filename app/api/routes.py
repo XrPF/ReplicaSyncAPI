@@ -1,10 +1,11 @@
 import os
 import json
 import requests
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, Response
 from app.services.mongodb_service import MongoDBService
 from app.services.mongodb_service import MongoDBCollectionService
 from threading import Thread
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 api_blueprint = Blueprint('api', __name__)
 mongodb_service = MongoDBService()
@@ -96,3 +97,7 @@ def sync_status():
             progress.update(worker_progress)
 
     return {"progress": progress}, 200
+
+@api_blueprint.route('/metrics')
+def metrics():
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
