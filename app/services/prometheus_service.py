@@ -1,18 +1,30 @@
 from prometheus_client import Counter, Gauge, Histogram
 
 class PrometheusService:
+    _instance = None
+
+    @staticmethod
+    def getInstance():
+        if PrometheusService._instance == None:
+            PrometheusService()
+        return PrometheusService._instance
+
     def __init__(self):
-        # Stream service metrics (replica real-time synchronization)
-        self.stream_service_operations_counter = Counter('replica_sync_api_stream_operation_count', 'Counter for the stream service operations', ['thread_name', 'db_name', 'collection_name', 'operation'])
-        self.stream_active_threads_gauge = Gauge('replica_sync_api_stream_active_threads_gauge', 'Gauge for the active threads in the API', ['thread_name'])
-        self.stream_errors_counter = Counter('replica_sync_api_stream_errors_count', 'Counter for the number of errors', ['thread_name', 'db_name', 'collection_name', 'error_type'])
-        self.stream_replication_latency_histogram = Histogram('replica_sync_api_stream_latency', 'Latency of replication operations (histogram)', ['thread_name', 'db_name', 'collection_name', 'operation'])
-        # Sync service metrics (batch data synchronization)
-        self.sync_processed_docs_counter = Counter('replica_sync_api_sync_processed_docs_count', 'Counter for the number of processed documents', ['thread_name', 'db_name', 'collection_name'])
-        self.sync_read_time_histogram = Histogram('replica_sync_api_sync_read_time', 'Time to read documents (histogram)', ['thread_name', 'db_name', 'collection_name'])
-        self.sync_write_time_histogram = Histogram('replica_sync_api_sync_write_time', 'Time to write documents (histogram)', ['thread_name', 'db_name', 'collection_name'])
-        self.sync_sleep_time_gauge = Gauge('replica_sync_api_sync_sleep_time', 'Gauge for time to sleep between batches', ['thread_name', 'db_name', 'collection_name'])
-        self.sync_errors_counter = Counter('replica_sync_api_sync_errors', 'Counter for the number of errors', ['thread_name', 'error_type', 'db_name', 'collection_name'])
+        if PrometheusService._instance != None:
+            raise Exception("This class is a singleton!")
+        else:
+            PrometheusService._instance = self
+            # Stream service metrics (replica real-time synchronization)
+            self.stream_service_operations_counter = Counter('replica_sync_api_stream_operation_count', 'Counter for the stream service operations', ['thread_name', 'db_name', 'collection_name', 'operation'])
+            self.stream_active_threads_gauge = Gauge('replica_sync_api_stream_active_threads_gauge', 'Gauge for the active threads in the API', ['thread_name'])
+            self.stream_errors_counter = Counter('replica_sync_api_stream_errors_count', 'Counter for the number of errors', ['thread_name', 'db_name', 'collection_name', 'error_type'])
+            self.stream_replication_latency_histogram = Histogram('replica_sync_api_stream_latency', 'Latency of replication operations (histogram)', ['thread_name', 'db_name', 'collection_name', 'operation'])
+            # Sync service metrics (batch data synchronization)
+            self.sync_processed_docs_counter = Counter('replica_sync_api_sync_processed_docs_count', 'Counter for the number of processed documents', ['thread_name', 'db_name', 'collection_name'])
+            self.sync_read_time_histogram = Histogram('replica_sync_api_sync_read_time', 'Time to read documents (histogram)', ['thread_name', 'db_name', 'collection_name'])
+            self.sync_write_time_histogram = Histogram('replica_sync_api_sync_write_time', 'Time to write documents (histogram)', ['thread_name', 'db_name', 'collection_name'])
+            self.sync_sleep_time_gauge = Gauge('replica_sync_api_sync_sleep_time', 'Gauge for time to sleep between batches', ['thread_name', 'db_name', 'collection_name'])
+            self.sync_errors_counter = Counter('replica_sync_api_sync_errors', 'Counter for the number of errors', ['thread_name', 'error_type', 'db_name', 'collection_name'])
 
     def increment_stream_service_counter(self, thread_name, db_name, collection_name, operation):
         self.stream_service_operations_counter.labels(thread_name=thread_name, db_name=db_name, collection_name=collection_name, operation=operation).inc()
@@ -40,4 +52,3 @@ class PrometheusService:
 
     def sync_errors_counter(self, thread_name, error_type, db_name, collection_name):
         self.sync_errors_counter.labels(thread_name=thread_name, error_type=error_type, db_name=db_name, collection_name=collection_name).inc()
-    

@@ -17,7 +17,7 @@ class MongoDBService:
         self.load_env_vars()
         self.init_mongo_connections()
         self.init_document_processing()
-        self.prometheus_service = PrometheusService()
+        self.prometheus_service = PrometheusService().getInstance()
         logger.info(f'[{self.machine_id}] ReplicaSyncAPI initialized. {self.max_workers} workers available. {self.total_machines} machines available.')
         logger.info(f'[{self.machine_id}] Garbage collector is enabled: {gc.isenabled()}. Garbage collector threshold: {gc.get_threshold()}')
 
