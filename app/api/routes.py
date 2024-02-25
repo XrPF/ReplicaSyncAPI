@@ -5,7 +5,9 @@ from flask import Blueprint, request, current_app, Response
 from app.services.mongodb_service import MongoDBService
 from app.services.mongodb_service import MongoDBCollectionService
 from threading import Thread
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, CollectorRegistry, MultiProcessCollector
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client.core import CollectorRegistry
+from prometheus_client.multiprocess import MultiProcessCollector
 
 api_blueprint = Blueprint('api', __name__)
 mongodb_service = MongoDBService()
