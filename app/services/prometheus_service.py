@@ -47,17 +47,17 @@ class PrometheusService:
     def observe_stream_replication_latency(self, thread_name, db_name, collection_name, operation, value):
         self.stream_replication_latency_histogram.labels(thread_name=thread_name, db_name=db_name, collection_name=collection_name, operation=operation).observe(value)
 
-    def sync_processed_docs_counter(self, thread_name, db_name, collection_name, value):
+    def increment_sync_processed_docs_counter(self, thread_name, db_name, collection_name, value):
         self.sync_processed_docs_counter.labels(thread_name=thread_name, db_name=db_name, collection_name=collection_name).inc(value)
 
-    def sync_read_time_histogram(self, thread_name, db_name, collection_name, value):
+    def observe_sync_read_time_histogram(self, thread_name, db_name, collection_name, value):
         self.sync_read_time_histogram.labels(thread_name=thread_name, db_name=db_name, collection_name=collection_name).observe(value)
 
-    def sync_write_time_histogram(self, thread_name, db_name, collection_name, value):
+    def observe_sync_write_time_histogram(self, thread_name, db_name, collection_name, value):
         self.sync_write_time_histogram.labels(thread_name=thread_name, db_name=db_name, collection_name=collection_name).observe(value)
 
-    def sync_sleep_time_gauge(self, thread_name, db_name, collection_name, value):
+    def set_sync_sleep_time_gauge(self, thread_name, db_name, collection_name, value):
         self.sync_sleep_time_gauge.labels(thread_name=thread_name, db_name=db_name, collection_name=collection_name).set(value)
 
-    def sync_errors_counter(self, thread_name, error_type, db_name, collection_name):
+    def increment_sync_errors_counter(self, thread_name, error_type, db_name, collection_name):
         self.sync_errors_counter.labels(thread_name=thread_name, error_type=error_type, db_name=db_name, collection_name=collection_name).inc()
