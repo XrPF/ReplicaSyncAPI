@@ -81,7 +81,7 @@ class MongoDBCollectionService:
     def process_batch(self, app, i, batch_size, db_name, collection_name, upsert_key=None):
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
-            self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).set(sleep_time)
+            #self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).set(sleep_time)
             logger.debug(f'[{threading.current_thread().name}] ({i}): Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
             time.sleep(sleep_time)
 
