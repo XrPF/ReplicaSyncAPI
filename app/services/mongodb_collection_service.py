@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class MongoDBCollectionService:
     def __init__(self, mongodb_service):
         self.mongodb_service = mongodb_service
-        self.prometheus_service = PrometheusService().getInstance()
+        self.prometheus_service = PrometheusService.getInstance()
 
     def calculate_batch_size(self, total_docs):
         if total_docs >= 1_000_000:
