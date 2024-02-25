@@ -56,7 +56,7 @@ class MongoDBCollectionService:
                     self.mongodb_service.processed_docs += num_ids
                 #self.prometheus_service.sync_processed_docs_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).inc(num_ids)
             except Exception as e:
-                self.prometheus_service.sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='bulk_write')
+                #self.prometheus_service.sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='bulk_write')
                 logger.error(f'[{threading.current_thread().name}] ({i}): ERROR in bulk_write: {e}')
                 raise
 
