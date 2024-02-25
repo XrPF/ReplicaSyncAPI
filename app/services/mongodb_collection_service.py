@@ -93,15 +93,15 @@ class MongoDBCollectionService:
                     operations, num_ids = self.build_operations(i, cursor, upsert_key)
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
-                    self.prometheus_service.observe_sync_read_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).observe(read_time)
+                    #self.prometheus_service.observe_sync_read_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).observe(read_time)
                     start_time = time.time()
                     self.write_documents(i, operations, num_ids, db_name, collection_name)
                     end_time = time.time()
                     write_time = round(end_time - start_time, 1)
-                    self.prometheus_service.observe_sync_write_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).observe(write_time)
+                    #self.prometheus_service.observe_sync_write_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).observe(write_time)
                     self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time, db_name, collection_name)
                 except Exception as e:
-                    self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='fetch_write')
+                    #self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='fetch_write')
                     logger.error(f'[{threading.current_thread().name}] ({i}): ERROR: {e}')
                     raise
                 finally:
