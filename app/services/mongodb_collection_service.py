@@ -68,7 +68,7 @@ class MongoDBCollectionService:
                  read_sleep_time = random.uniform(read_time, read_time * 2)
             else:
                 read_sleep_time = random.uniform(read_time + sleep_time, read_time * 2 + sleep_time)
-            #self.prometheus_service.sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).set(read_sleep_time)
+            self.prometheus_service.sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).set(read_sleep_time)
             logger.debug(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
             time.sleep(read_sleep_time)
 
