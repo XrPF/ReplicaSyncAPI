@@ -5,7 +5,7 @@ from flask import Blueprint, request, current_app, Response
 from app.services.mongodb_service import MongoDBService
 from app.services.mongodb_service import MongoDBCollectionService
 from threading import Thread
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, PROCESS_COLLECTOR, PLATFORM_COLLECTOR, GC_COLLECTOR, THREADS_COLLECTOR
 from prometheus_client.core import CollectorRegistry
 from prometheus_client.multiprocess import MultiProcessCollector
 
@@ -104,6 +104,12 @@ def sync_status():
 def metrics():
     # Create a new CollectorRegistry instance.
     registry = CollectorRegistry()
+
+    # Process collectors
+    registry.register(PROCESS_COLLECTOR)
+    registry.register(PLATFORM_COLLECTOR)
+    registry.register(GC_COLLECTOR)
+    registry.register(THREADS_COLLECTOR)
 
     # Create a new MultiProcessCollector instance.
     MultiProcessCollector(registry)
