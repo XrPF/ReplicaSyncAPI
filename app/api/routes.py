@@ -5,7 +5,7 @@ from flask import Blueprint, request, current_app, Response
 from app.services.mongodb_service import MongoDBService
 from app.services.mongodb_service import MongoDBCollectionService
 from threading import Thread
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, CollectorRegistry, MultiProcessCollector
 
 api_blueprint = Blueprint('api', __name__)
 mongodb_service = MongoDBService()
@@ -100,4 +100,11 @@ def sync_status():
 
 @api_blueprint.route('/metrics')
 def metrics():
-    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+    # Create a new CollectorRegistry instance.
+    registry = CollectorRegistry()
+
+    # Create a new MultiProcessCollector instance.
+    MultiProcessCollector(registry)
+
+    # Generate and return the latest metrics from the registry.
+    return Response(generate_latest(registry), mimetype=CONTENT_TYPE_LATEST)
