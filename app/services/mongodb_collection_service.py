@@ -98,7 +98,7 @@ class MongoDBCollectionService:
                     self.write_documents(i, operations, num_ids, db_name, collection_name)
                     end_time = time.time()
                     write_time = round(end_time - start_time, 1)
-                    self.prometheus_service.sync_write_time_histogram.labels(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).observe(write_time)
+                    self.prometheus_service.sync_write_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name).observe(write_time)
                     self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time, db_name, collection_name)
                 except Exception as e:
                     self.prometheus_service.sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='fetch_write')
