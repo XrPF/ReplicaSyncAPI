@@ -81,7 +81,7 @@ class MongoDBCollectionService:
     def process_batch(self, app, i, batch_size, db_name, collection_name, upsert_key=None):
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
-            #self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=sleep_time)
+            self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=sleep_time)
             logger.debug(f'[{threading.current_thread().name}] ({i}): Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
             time.sleep(sleep_time)
 
@@ -93,12 +93,12 @@ class MongoDBCollectionService:
                     operations, num_ids = self.build_operations(i, cursor, upsert_key)
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
-                    #self.prometheus_service.observe_sync_read_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_time)
+                    self.prometheus_service.observe_sync_read_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_time)
                     start_time = time.time()
                     self.write_documents(i, operations, num_ids, db_name, collection_name)
                     end_time = time.time()
                     write_time = round(end_time - start_time, 1)
-                    #self.prometheus_service.observe_sync_write_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=write_time)
+                    self.prometheus_service.observe_sync_write_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=write_time)
                     self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time, db_name, collection_name)
                 except Exception as e:
                     self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='fetch_write')
