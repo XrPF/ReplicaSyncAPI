@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+from logging.handlers import RotatingFileHandler
 import datetime
 from multiprocessing import current_process
 from pymongo import MongoClient
@@ -20,7 +21,7 @@ class MongoDBReplicaService(MongoDBService):
         thread_id = current_process().pid
         logger_name = f'{thread_name}_{thread_id}_{db_name}_{collection_name}'
         logger = logging.getLogger(logger_name)
-        handler = logging.FileHandler(f'/var/log/ReplicaSyncAPI/{logger_name}.log')
+        handler = RotatingFileHandler(f'/var/log/ReplicaSyncAPI/{logger_name}.log', maxBytes=10000000, backupCount=5)
         formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         handler.setFormatter(formatter)
         handler.setLevel(logging.INFO)
