@@ -95,7 +95,9 @@ class MongoDBCollectionService:
                     cursor = self.fetch_documents(last_id, batch_size, session)
                     operations, num_ids = self.build_operations(cursor, upsert_key)
                     if operations:
-                        last_id = operations[-1].filter['_id']
+                        last_id = None
+                        for doc in cursor:
+                            last_id = doc['_id']
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
                     self.prometheus_service.observe_sync_read_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_time)
