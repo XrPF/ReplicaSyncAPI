@@ -1,3 +1,4 @@
+from datetime import timedelta
 import time
 import math
 import random
@@ -6,6 +7,7 @@ import threading
 import gc
 from pymongo import UpdateOne
 from concurrent.futures import ThreadPoolExecutor
+from bson.objectid import ObjectId
 from app.services.prometheus_service import PrometheusService
 
 logger = logging.getLogger(__name__)
@@ -31,13 +33,7 @@ class MongoDBCollectionService:
     def calculate_sleep_time(self):
         base_sleep_time = min(self.mongodb_service.max_workers, 60)
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
-    
-    def fetch_documents(self, last_id, batch_size, session):
-        if last_id is None:
-            return self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).limit(batch_size)
-        else:
-            return self.mongodb_service.coll_src.find({'_id': {'$gt': last_id}}, session=session, no_cursor_timeout=True).sort('_id', 1).limit(batch_size)
-
+        
     def build_operations(self, cursor, upsert_key):
         operations = []
         num_ids = 0
@@ -81,7 +77,7 @@ class MongoDBCollectionService:
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
-    def process_batch(self, app, last_id, batch_size, db_name, collection_name, upsert_key=None):
+    def process_batch(self, app, min_id, max_id, db_name, collection_name, upsert_key=None):
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=sleep_time)
@@ -92,12 +88,8 @@ class MongoDBCollectionService:
                 cursor = None
                 try:
                     start_time = time.time()
-                    cursor = self.fetch_documents(last_id, batch_size, session)
+                    cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': min_id, '$lt': max_id}}, session=session, no_cursor_timeout=True)
                     operations, num_ids = self.build_operations(cursor, upsert_key)
-                    if operations:
-                        last_id = None
-                        for doc in cursor:
-                            last_id = doc['_id']
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
                     self.prometheus_service.observe_sync_read_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_time)
@@ -118,13 +110,14 @@ class MongoDBCollectionService:
                     gc.collect()
 
     def process_batches(self, app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key=None):
-        parent_batches = math.ceil(self.mongodb_service.total_docs / batch_size)
-        last_processed_batch = 0
-        last_id = None
-        if self.mongodb_service.total_docs > 0:
-            last_processed_batch = math.floor((self.mongodb_service.processed_docs / self.mongodb_service.total_docs) * parent_batches)
+        min_id = self.mongodb_service.coll_src.find().sort('_id', 1).limit(1)[0]['_id']
+        max_id = self.mongodb_service.coll_src.find().sort('_id', -1).limit(1)[0]['_id']
+        total_seconds = (max_id.generation_time - min_id.generation_time).total_seconds()
+        seconds_per_batch = total_seconds / batch_size
+
         with ThreadPoolExecutor(max_workers=self.mongodb_service.max_workers) as executor:
-            for i in range(start_batch, min(end_batch, parent_batches)):
-                if i > last_processed_batch:
-                    last_id = executor.submit(self.process_batch, app, last_id, batch_size, db_name, collection_name, upsert_key).result()
+            for i in range(start_batch, min(end_batch, batch_size)):
+                batch_min_id = ObjectId.from_datetime(min_id.generation_time + timedelta(seconds=i * seconds_per_batch))
+                batch_max_id = ObjectId.from_datetime(min_id.generation_time + timedelta(seconds=(i+1) * seconds_per_batch))
+                executor.submit(self.process_batch, app, batch_min_id, batch_max_id, db_name, collection_name, upsert_key)
         logger.debug(f'Processed up to batch {end_batch}')
