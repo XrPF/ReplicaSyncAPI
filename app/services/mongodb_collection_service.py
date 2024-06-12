@@ -32,10 +32,13 @@ class MongoDBCollectionService:
         base_sleep_time = min(self.mongodb_service.max_workers, 60)
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
-    def fetch_documents(self, i, batch_size, session):
-        return self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).skip(i).limit(batch_size)
+    def fetch_documents(self, last_id, batch_size, session):
+        if last_id is None:
+            return self.mongodb_service.coll_src.find(session=session, no_cursor_timeout=True).sort('_id', 1).limit(batch_size)
+        else:
+            return self.mongodb_service.coll_src.find({'_id': {'$gt': last_id}}, session=session, no_cursor_timeout=True).sort('_id', 1).limit(batch_size)
 
-    def build_operations(self, i, cursor, upsert_key):
+    def build_operations(self, cursor, upsert_key):
         operations = []
         num_ids = 0
         for doc in cursor:
@@ -48,7 +51,7 @@ class MongoDBCollectionService:
 
         return operations, num_ids                
     
-    def write_documents(self, i, operations, num_ids, db_name, collection_name):
+    def write_documents(self, operations, num_ids, db_name, collection_name):
         if operations:
             try:
                 self.mongodb_service.coll_dst.bulk_write(operations)
@@ -56,20 +59,20 @@ class MongoDBCollectionService:
                     self.mongodb_service.processed_docs += num_ids
                 self.prometheus_service.increment_sync_processed_docs_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=num_ids)
             except Exception as e:
-                logger.error(f'[{threading.current_thread().name}] ({i}): ERROR in bulk_write: {e}')
+                logger.error(f'[{threading.current_thread().name}] ERROR in bulk_write: {e}')
                 self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='bulk_write')
                 raise
 
-    def log_and_sleep(self, i, num_ids, read_time, write_time, sleep_time, db_name, collection_name):
+    def log_and_sleep(self, num_ids, read_time, write_time, sleep_time, db_name, collection_name):
         progress = self.sync_status_progress().split('%')[0]
-        logger.info(f'[{threading.current_thread().name}] ({i}): Fetched {num_ids} docs in {read_time}s. Written {num_ids} docs in {write_time}s. Progress: {progress}%')
+        logger.info(f'[{threading.current_thread().name}] Fetched {num_ids} docs in {read_time}s. Written {num_ids} docs in {write_time}s. Progress: {progress}%')
         if write_time < read_time:
             if write_time * 2 < read_time:
                  read_sleep_time = random.uniform(read_time, read_time * 2)
             else:
                 read_sleep_time = random.uniform(read_time + sleep_time, read_time * 2 + sleep_time)
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_sleep_time)
-            logger.debug(f"[{threading.current_thread().name}] ({i}): Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
+            logger.debug(f"[{threading.current_thread().name}] Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
             time.sleep(read_sleep_time)
 
     def sync_status_progress(self):
@@ -78,31 +81,33 @@ class MongoDBCollectionService:
         progress_bar = '#' * int(progress) + '-' * (100 - int(progress))
         return f'{progress}% [{progress_bar}]'
     
-    def process_batch(self, app, i, batch_size, db_name, collection_name, upsert_key=None):
+    def process_batch(self, app, last_id, batch_size, db_name, collection_name, upsert_key=None):
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=sleep_time)
-            logger.debug(f'[{threading.current_thread().name}] ({i}): Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
+            logger.debug(f'[{threading.current_thread().name}] Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
             time.sleep(sleep_time)
 
             with self.mongodb_service.syncSrc.start_session() as session:
                 cursor = None
                 try:
                     start_time = time.time()
-                    cursor = self.fetch_documents(i, batch_size, session)
-                    operations, num_ids = self.build_operations(i, cursor, upsert_key)
+                    cursor = self.fetch_documents(last_id, batch_size, session)
+                    operations, num_ids = self.build_operations(cursor, upsert_key)
+                    if operations:
+                        last_id = operations[-1].filter['_id']
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
                     self.prometheus_service.observe_sync_read_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_time)
                     start_time = time.time()
-                    self.write_documents(i, operations, num_ids, db_name, collection_name)
+                    self.write_documents(operations, num_ids, db_name, collection_name)
                     end_time = time.time()
                     write_time = round(end_time - start_time, 1)
                     self.prometheus_service.observe_sync_write_time_histogram(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=write_time)
-                    self.log_and_sleep(i, num_ids, read_time, write_time, sleep_time, db_name, collection_name)
+                    self.log_and_sleep(num_ids, read_time, write_time, sleep_time, db_name, collection_name)
                 except Exception as e:
                     self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='fetch_write')
-                    logger.error(f'[{threading.current_thread().name}] ({i}): ERROR: {e}')
+                    logger.error(f'[{threading.current_thread().name}] ERROR: {e}')
                     raise
                 finally:
                     if cursor:
@@ -113,10 +118,11 @@ class MongoDBCollectionService:
     def process_batches(self, app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key=None):
         parent_batches = math.ceil(self.mongodb_service.total_docs / batch_size)
         last_processed_batch = 0
+        last_id = None
         if self.mongodb_service.total_docs > 0:
             last_processed_batch = math.floor((self.mongodb_service.processed_docs / self.mongodb_service.total_docs) * parent_batches)
         with ThreadPoolExecutor(max_workers=self.mongodb_service.max_workers) as executor:
             for i in range(start_batch, min(end_batch, parent_batches)):
                 if i > last_processed_batch:
-                    executor.submit(self.process_batch, app, i * batch_size, batch_size, db_name, collection_name, upsert_key)
+                    last_id = executor.submit(self.process_batch, app, last_id, batch_size, db_name, collection_name, upsert_key).result()
         logger.debug(f'Processed up to batch {end_batch}')
