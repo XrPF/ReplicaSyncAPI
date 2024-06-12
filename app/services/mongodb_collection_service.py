@@ -88,7 +88,7 @@ class MongoDBCollectionService:
                 cursor = None
                 try:
                     start_time = time.time()
-                    cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(min_id), '$lt': ObjectId(max_id)}}, session=session, no_cursor_timeout=True)
+                    cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': min_id, '$lt': max_id}}, session=session, no_cursor_timeout=True)
                     operations, num_ids = self.build_operations(cursor, upsert_key)
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
@@ -118,7 +118,7 @@ class MongoDBCollectionService:
         max_id_hex = max_id.binary.hex()
         
         total_ids = int(max_id_hex, 16) - int(min_id_hex, 16)
-        ids_per_batch = total_ids / batch_size
+        ids_per_batch = total_ids // batch_size
 
         for i in range(start_batch, min(end_batch, batch_size)):
             batch_min_id = ObjectId(hex(int(min_id_hex, 16) + i * ids_per_batch)[2:].zfill(24))
