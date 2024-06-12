@@ -88,7 +88,7 @@ class MongoDBCollectionService:
                 cursor = None
                 try:
                     start_time = time.time()
-                    cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': min_id, '$lt': max_id}}, session=session, no_cursor_timeout=True)
+                    cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(min_id), '$lt': ObjectId(max_id)}}, session=session, no_cursor_timeout=True)
                     operations, num_ids = self.build_operations(cursor, upsert_key)
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
