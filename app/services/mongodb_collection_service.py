@@ -112,12 +112,13 @@ class MongoDBCollectionService:
     def process_batches(self, app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key=None):
         min_id = self.mongodb_service.coll_src.find().sort('_id', 1).limit(1)[0]['_id']
         max_id = self.mongodb_service.coll_src.find().sort('_id', -1).limit(1)[0]['_id']
+        logger.info(f'[{threading.current_thread().name}] Min _id: {min_id}. Max _id: {max_id}')
         total_seconds = (max_id.generation_time - min_id.generation_time).total_seconds()
         seconds_per_batch = total_seconds / batch_size
 
-        with ThreadPoolExecutor(max_workers=self.mongodb_service.max_workers) as executor:
-            for i in range(start_batch, min(end_batch, batch_size)):
-                batch_min_id = ObjectId.from_datetime(min_id.generation_time + timedelta(seconds=i * seconds_per_batch))
-                batch_max_id = ObjectId.from_datetime(min_id.generation_time + timedelta(seconds=(i+1) * seconds_per_batch))
-                executor.submit(self.process_batch, app, batch_min_id, batch_max_id, db_name, collection_name, upsert_key)
+        for i in range(start_batch, min(end_batch, batch_size)):
+            batch_min_id = ObjectId.from_datetime(min_id.generation_time + timedelta(seconds=i * seconds_per_batch))
+            batch_max_id = ObjectId.from_datetime(min_id.generation_time + timedelta(seconds=(i+1) * seconds_per_batch))
+            self.process_batch(app, batch_min_id, batch_max_id, db_name, collection_name, upsert_key)
+
         logger.debug(f'Processed up to batch {end_batch}')
