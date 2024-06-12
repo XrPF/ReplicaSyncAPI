@@ -44,7 +44,8 @@ class MongoDBCollectionService:
                 update_key[upsert_key] = doc[upsert_key]
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
             logger.info(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
-
+        if not operations:
+            logger.info(f'[{threading.current_thread().name}] No documents found in the cursor')
         return operations, num_ids                
     
     def write_documents(self, operations, num_ids, db_name, collection_name):
@@ -58,6 +59,8 @@ class MongoDBCollectionService:
                 logger.error(f'[{threading.current_thread().name}] ERROR in bulk_write: {e}')
                 self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='bulk_write')
                 raise
+        else:
+            logger.info(f'[{threading.current_thread().name}] No operations to write')
 
     def log_and_sleep(self, num_ids, read_time, write_time, sleep_time, db_name, collection_name):
         progress = self.sync_status_progress().split('%')[0]
@@ -89,9 +92,6 @@ class MongoDBCollectionService:
                 try:
                     start_time = time.time()
                     cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(min_id), '$lt': ObjectId(max_id)}}, session=session, no_cursor_timeout=True)
-                    if cursor.count() == 0:
-                        logger.info(f'[{threading.current_thread().name}] No documents found in the range {min_id} to {max_id}')
-                        return
                     operations, num_ids = self.build_operations(cursor, upsert_key)
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
