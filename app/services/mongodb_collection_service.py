@@ -43,7 +43,7 @@ class MongoDBCollectionService:
             if self.mongodb_service.coll_is_sharded and upsert_key is not None:
                 update_key[upsert_key] = doc[upsert_key]
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
-            logger.debug(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
+            logger.info(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
 
         return operations, num_ids                
     
@@ -68,7 +68,7 @@ class MongoDBCollectionService:
             else:
                 read_sleep_time = random.uniform(read_time + sleep_time, read_time * 2 + sleep_time)
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_sleep_time)
-            logger.debug(f"[{threading.current_thread().name}] Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
+            logger.info(f"[{threading.current_thread().name}] Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
             time.sleep(read_sleep_time)
 
     def sync_status_progress(self):
@@ -81,7 +81,7 @@ class MongoDBCollectionService:
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=sleep_time)
-            logger.debug(f'[{threading.current_thread().name}] Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
+            logger.info(f'[{threading.current_thread().name}] Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
             time.sleep(sleep_time)
 
             with self.mongodb_service.syncSrc.start_session() as session:
@@ -89,6 +89,9 @@ class MongoDBCollectionService:
                 try:
                     start_time = time.time()
                     cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(min_id), '$lt': ObjectId(max_id)}}, session=session, no_cursor_timeout=True)
+                    if cursor.count() == 0:
+                        logger.info(f'[{threading.current_thread().name}] No documents found in the range {min_id} to {max_id}')
+                        return
                     operations, num_ids = self.build_operations(cursor, upsert_key)
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
