@@ -114,9 +114,11 @@ class MongoDBCollectionService:
 
     def process_batches(self, app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key=None):
         batch_min_id = self.mongodb_service.coll_src.find().sort('_id', 1).limit(1)[0]['_id']
-        
+        logger.info(f'[Parent-Thread] Starting to process batches from {start_batch} to {end_batch}. Min _id: {batch_min_id}')
+
         for i in range(start_batch, end_batch):
             batch = self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}).sort('_id', 1).limit(batch_size)
+            logger.info(f'[Parent-Thread] Fetching batch {i+1} of {end_batch}')
             if batch.count() > 0:
                 batch_max_id = batch[batch.count() - 1]['_id']
                 logger.info(f'[Parent-Thread] Processing batch {i+1} of {end_batch}. Min _id: {batch_min_id}. Max _id: {batch_max_id}')
