@@ -126,6 +126,6 @@ class MongoDBCollectionService:
             batch_min_id = ObjectId(hex(int(min_id_hex, 16) + i * batch_size)[2:].zfill(24))
             batch_max_id = ObjectId(hex(int(min_id_hex, 16) + (i+1) * batch_size)[2:].zfill(24))
             logger.info(f'[Parent-Thread] Processing batch {i+1} of {min(end_batch, batch_size)}. Min _id: {batch_min_id}. Max _id: {batch_max_id}')
-            self.process_batch(app, batch_min_id, batch_max_id, batch_size, db_name, collection_name, upsert_key)
+            self.process_batch(app, batch_min_id, batch_max_id, db_name, collection_name, upsert_key)
 
         logger.debug(f'Processed up to batch {end_batch}')
