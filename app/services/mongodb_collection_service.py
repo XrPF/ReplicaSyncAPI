@@ -117,9 +117,9 @@ class MongoDBCollectionService:
         logger.info(f'[Parent-Thread] Starting to process batches from {start_batch} to {end_batch}. Min _id: {batch_min_id}')
 
         for i in range(start_batch, end_batch):
-            batch = self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}, no_cursor_timeout=True).sort('_id', 1).limit(batch_size)
+            batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}, no_cursor_timeout=True).sort('_id', 1).limit(batch_size))
             logger.info(f'[Parent-Thread] Fetching batch {i+1} of {end_batch}')
-            batch_count = batch.count()
+            batch_count = len(batch)
             logger.info(f'[Parent-Thread] Batch count: {batch_count}')
             if batch_count > 0:
                 last_document = batch[batch_count - 1]
