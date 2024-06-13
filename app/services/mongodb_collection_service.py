@@ -113,19 +113,17 @@ class MongoDBCollectionService:
                     gc.collect()
 
     def process_batches(self, app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key=None):
-        min_id = self.mongodb_service.coll_src.find().sort('_id', 1).limit(1)[0]['_id']
-        max_id = self.mongodb_service.coll_src.find().sort('_id', -1).limit(1)[0]['_id']
-        logger.info(f'[Parent-Thread] Min _id: {min_id}. Max _id: {max_id}')
+        batch_min_id = self.mongodb_service.coll_src.find().sort('_id', 1).limit(1)[0]['_id']
         
-        min_id_hex = min_id.binary.hex()
-        max_id_hex = max_id.binary.hex()
-        
-#        total_ids = int(max_id_hex, 16) - int(min_id_hex, 16)
-
         for i in range(start_batch, end_batch):
-            batch_min_id = ObjectId(hex(int(min_id_hex, 16) + i * batch_size)[2:].zfill(24))
-            batch_max_id = ObjectId(hex(int(min_id_hex, 16) + (i+1) * batch_size)[2:].zfill(24))
-            logger.info(f'[Parent-Thread] Processing batch {i+1} of {min(end_batch, batch_size)}. Min _id: {batch_min_id}. Max _id: {batch_max_id}')
-            self.process_batch(app, batch_min_id, batch_max_id, db_name, collection_name, upsert_key)
+            batch = self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}).sort('_id', 1).limit(batch_size)
+            if batch.count() > 0:
+                batch_max_id = batch[batch.count() - 1]['_id']
+                logger.info(f'[Parent-Thread] Processing batch {i+1} of {end_batch}. Min _id: {batch_min_id}. Max _id: {batch_max_id}')
+                self.process_batch(app, batch_min_id, batch_max_id, db_name, collection_name, upsert_key)
+                batch_min_id = batch_max_id
+            else:
+                logger.info(f'[Parent-Thread] No more documents to process')
+                break
 
         logger.debug(f'Processed up to batch {end_batch}')
