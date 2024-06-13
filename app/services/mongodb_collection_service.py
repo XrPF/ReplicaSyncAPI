@@ -1,4 +1,3 @@
-from datetime import timedelta
 import time
 import math
 import random
@@ -71,7 +70,7 @@ class MongoDBCollectionService:
             else:
                 read_sleep_time = random.uniform(read_time + sleep_time, read_time * 2 + sleep_time)
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=read_sleep_time)
-            logger.info(f"[{threading.current_thread().name}] Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
+            logger.debug(f"[{threading.current_thread().name}] Read threshold exceeded, let's take a break for {round(read_sleep_time, 0)} seconds...")
             time.sleep(read_sleep_time)
 
     def sync_status_progress(self):
@@ -114,22 +113,20 @@ class MongoDBCollectionService:
 
     def process_batches(self, app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key=None):
         batch_min_id = self.mongodb_service.coll_src.find().sort('_id', 1).limit(1)[0]['_id']
-        logger.info(f'[Parent-Thread] Starting to process batches from {start_batch} to {end_batch}. Min _id: {batch_min_id}')
+        logger.info(f'[Main-Thread] Starting to process batches from {start_batch} to {end_batch}. Min _id: {batch_min_id}')
 
         for i in range(start_batch, end_batch):
             batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}, no_cursor_timeout=True).sort('_id', 1).limit(batch_size))
-            logger.info(f'[Parent-Thread] Fetching batch {i+1} of {end_batch}')
             batch_count = len(batch)
-            logger.info(f'[Parent-Thread] Batch count: {batch_count}')
+
             if batch_count > 0:
                 last_document = batch[batch_count - 1]
-                logger.info(f'[Parent-Thread] Last document: {last_document}')
                 batch_max_id = last_document['_id']
-                logger.info(f'[Parent-Thread] Processing batch {i+1} of {end_batch}. Min _id: {batch_min_id}. Max _id: {batch_max_id}')
+                logger.info(f'[Main-Thread] Processing batch {i+1} of {end_batch}. Min _id: {batch_min_id}. Max _id: {batch_max_id}')
                 self.process_batch(app, batch_min_id, batch_max_id, db_name, collection_name, upsert_key)
                 batch_min_id = batch_max_id
             else:
-                logger.info(f'[Parent-Thread] No more documents to process')
+                logger.info(f'[Main-Thread] No more documents to process')
                 break
 
         logger.debug(f'Processed up to batch {end_batch}')
