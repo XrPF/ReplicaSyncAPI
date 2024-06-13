@@ -43,7 +43,7 @@ class MongoDBCollectionService:
             if self.mongodb_service.coll_is_sharded and upsert_key is not None:
                 update_key[upsert_key] = doc[upsert_key]
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
-            logger.info(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
+            logger.debug(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
         if not operations:
             logger.info(f'[{threading.current_thread().name}] No documents found in the cursor')
         return operations, num_ids                
@@ -84,7 +84,7 @@ class MongoDBCollectionService:
         with app.app_context():
             sleep_time = self.calculate_sleep_time()
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=sleep_time)
-            logger.info(f'[{threading.current_thread().name}] Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
+            logger.debug(f'[{threading.current_thread().name}] Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
             time.sleep(sleep_time)
 
             with self.mongodb_service.syncSrc.start_session() as session:
