@@ -40,7 +40,11 @@ class MongoDBCollectionService:
             num_ids += 1
             update_key = {'_id': doc['_id']}
             if self.mongodb_service.coll_is_sharded and upsert_key is not None:
-                update_key[upsert_key] = doc[upsert_key]
+                if isinstance(upsert_key, str):
+                    update_key[upsert_key] = doc[upsert_key]
+                elif isinstance(upsert_key, list):
+                    for key in upsert_key:
+                        update_key[key] = doc.get(key)
             operations.append(UpdateOne(update_key, {'$set': doc}, upsert=True))
             logger.debug(f'[{threading.current_thread().name}] ({threading.current_thread().name}): Upsert document with _id: {doc["_id"]}')
         if not operations:
