@@ -15,12 +15,12 @@ class MongoDBReplicaService(MongoDBService):
         self.syncSrc = MongoClient(uri1)
         self.syncDst = MongoClient(uri2)
         self.prometheus_service = prometheus_service
+        self.thread_name = current_process().name
+        self.thread_id = current_process().pid
         self.logger = self._setup_logger()
 
     def _setup_logger(self):
-        thread_name = current_process().name
-        thread_id = current_process().pid
-        logger_name = f'{thread_name}_{thread_id}'
+        logger_name = f'{self.thread_name}_{self.thread_id}'
         logger = logging.getLogger(logger_name)
         log_file_path = os.getenv('LOG_FILE_PATH', f'/var/log/ReplicaSyncAPI/{logger_name}.log')
         handler = RotatingFileHandler(log_file_path, maxBytes=10000000, backupCount=5)
@@ -102,17 +102,17 @@ class MongoDBReplicaService(MongoDBService):
             collection_dst.replace_one(document_key, full_document)
         
         logger.info(f'Operation: {operation_type} ID: {document_key}')
-        self.prometheus_service.observe_stream_replication_latency(db_name, collection_name, operation_type, (datetime.datetime.now() - last_change_time).total_seconds())
-        self.prometheus_service.increment_stream_service_counter(db_name, collection_name, operation_type)
+        self.prometheus_service.observe_stream_replication_latency(self.thread_name, db_name, collection_name, operation_type, (datetime.datetime.now() - last_change_time).total_seconds())
+        self.prometheus_service.increment_stream_service_counter(self.thread_name, db_name, collection_name, operation_type)
 
     def _handle_error(self, error_type, db_name, collection_name, retry_delay):
-        self.prometheus_service.increment_stream_service_errors(db_name, collection_name, error_type)
+        self.prometheus_service.increment_stream_service_errors(self.thread_name, db_name, collection_name, error_type)
         self.logger.error(f'{error_type} error, retrying in {retry_delay} seconds...')
         time.sleep(retry_delay)
 
     def _handle_pymongo_error(self, error, db_name, collection_name, token_file):
         error_code = getattr(error, 'code', 'Unknown')
-        self.prometheus_service.increment_stream_service_errors(db_name, collection_name, 'PyMongoError_' + str(error_code))
+        self.prometheus_service.increment_stream_service_errors(self.thread_name, db_name, collection_name, 'PyMongoError_' + str(error_code))
         
         if error_code == 286:
             self.logger.error('Resume token no longer in oplog, starting from scratch.')
@@ -121,5 +121,5 @@ class MongoDBReplicaService(MongoDBService):
             self.logger.error(f'PyMongoError: {error}')
 
     def _handle_generic_error(self, error, db_name, collection_name):
-        self.prometheus_service.increment_stream_service_errors(db_name, collection_name, 'Exception')
+        self.prometheus_service.increment_stream_service_errors(self.thread_name, db_name, collection_name, 'Exception')
         self.logger.error(f'Error in replicate_changes: {error}')
