@@ -81,11 +81,25 @@ class MongoDBReplicaService(MongoDBService):
                         if elapsed_time > datetime.timedelta(minutes=5):
                             logger.info(f'[{thread_name}][{db_name}.{collection_name}] No changes detected in the last 5 minutes')
                     break
+                    
                 except ConnectionFailure:
                     self.prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'ConnectionFailure')
                     logger.error(f'[{thread_name}][{db_name}.{collection_name}] Connection error, retrying...')
                     time.sleep(retry_delay)
                     retry_delay *= 2
+                    
+                except pymongo.errors.PyMongoError as e:
+                    error_code = getattr(e, 'code', 'Unknown')
+                    self.prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'PyMongoError_' + str(error_code))
+                    
+                    if error_code == 286:
+                        logger.error(f'[{thread_name}][{db_name}.{collection_name}] Resume token no longer in oplog, starting from scratch.')
+                        resume_token = None
+                        with open(f'/opt/replicator/resume_token_{db_name}_{collection_name}.txt', 'w') as f:
+                            f.write(json_util.dumps(resume_token))
+                    else:
+                        logger.error(f'[{thread_name}][{db_name}.{collection_name}] PyMongoError: {e}')
+                        
                 except Exception as e:
                     self.prometheus_service.increment_stream_service_errors(thread_name, db_name, collection_name, 'Exception')
                     logger.error(f'[{thread_name}][{db_name}.{collection_name}] Error in replicate_changes: {e}')
