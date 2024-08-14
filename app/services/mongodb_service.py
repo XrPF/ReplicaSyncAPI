@@ -101,6 +101,7 @@ class MongoDBService:
         return collections_to_sync
 
     def sync_collection(self, app, db_name=None, collection_name=None, upsert_key=None):
+        self.prometheus_service.set_node_sync_status(1)
         self.init_document_processing()
         mongodb_collections = MongoDBCollectionService(self)
         for db_name, collection_name in self.target_dbs_collections(db_name, collection_name):
@@ -120,6 +121,7 @@ class MongoDBService:
             self.processed_docs = 0
             self.close_connections()
             time.sleep(self.max_workers)
+            self.prometheus_service.set_node_sync_status(0)
             gc.collect()
         return True
     

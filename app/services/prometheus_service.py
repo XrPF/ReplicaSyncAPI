@@ -34,6 +34,7 @@ class PrometheusService:
             self.sync_write_time_histogram = Histogram('replica_sync_api_sync_write_time', 'Time to write documents (histogram)', ['thread_name', 'db_name', 'collection_name'], registry=self.registry)
             self.sync_sleep_time_gauge = Gauge('replica_sync_api_sync_sleep_time', 'Gauge for time to sleep between batches', ['thread_name', 'db_name', 'collection_name'], registry=self.registry)
             self.sync_errors_counter = Counter('replica_sync_api_sync_errors', 'Counter for the number of errors', ['thread_name', 'error_type', 'db_name', 'collection_name'], registry=self.registry)
+            self.sync_status_gauge = Gauge('replica_sync_api_sync_status', 'Gauge for the sync status', registry=self.registry)
 
     def increment_stream_service_counter(self, thread_name, db_name, collection_name, operation):
         self.stream_service_operations_counter.labels(thread_name=thread_name, db_name=db_name, collection_name=collection_name, operation=operation).inc()
@@ -61,3 +62,6 @@ class PrometheusService:
 
     def increment_sync_errors_counter(self, thread_name, error_type, db_name, collection_name):
         self.sync_errors_counter.labels(thread_name=thread_name, error_type=error_type, db_name=db_name, collection_name=collection_name).inc()
+
+    def set_node_sync_status(self, status):
+        self.sync_status_gauge.set(status)
