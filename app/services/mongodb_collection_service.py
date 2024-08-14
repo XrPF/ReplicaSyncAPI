@@ -6,7 +6,7 @@ import threading
 import gc
 from pymongo import UpdateOne
 from concurrent.futures import ThreadPoolExecutor
-from bson.objectid import ObjectId
+from bson import ObjectId, InvalidId
 from app.services.prometheus_service import PrometheusService
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,13 @@ class MongoDBCollectionService:
     def calculate_sleep_time(self):
         base_sleep_time = min(self.mongodb_service.max_workers, 60)
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
+    
+    def is_object_id(value):
+        try:
+            ObjectId(value)
+            return True
+        except (InvalidId, TypeError):
+            return False
         
     def build_operations(self, cursor, upsert_key):
         operations = []
@@ -89,12 +96,18 @@ class MongoDBCollectionService:
             self.prometheus_service.set_sync_sleep_time_gauge(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=sleep_time)
             logger.debug(f'[{threading.current_thread().name}] Break time, drinking a cup of coffee. Wait me {round(sleep_time, 0)} seconds...')
             time.sleep(sleep_time)
-
+    
             with self.mongodb_service.syncSrc.start_session() as session:
                 cursor = None
                 try:
+                    is_object_id_type = self.is_object_id(min_id)
                     start_time = time.time()
-                    cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(min_id), '$lt': ObjectId(max_id)}}, session=session, no_cursor_timeout=True)
+
+                    if is_object_id_type:
+                        cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(min_id), '$lt': ObjectId(max_id)}}, session=session, no_cursor_timeout=True)
+                    else:
+                        cursor = self.mongodb_service.coll_src.find({'_id': {'$gte': min_id, '$lt': max_id}}, session=session, no_cursor_timeout=True).sort('_id', 1)
+                    
                     operations, num_ids = self.build_operations(cursor, upsert_key)
                     end_time = time.time()
                     read_time = round(end_time - start_time, 1)
@@ -117,18 +130,28 @@ class MongoDBCollectionService:
 
     def process_batches(self, app, batch_size, start_batch, end_batch, db_name, collection_name, upsert_key=None):
         batch_min_id = self.mongodb_service.coll_src.find().sort('_id', 1).limit(1)[0]['_id']
+        is_object_id_type = self.is_object_id(batch_min_id)
+    
         if start_batch > 0:
             for b_loop in range(start_batch):
-                batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(batch_min_id)}}).sort('_id', 1).limit(batch_size))
+                if is_object_id_type:
+                    batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(batch_min_id)}}).sort('_id', 1).limit(batch_size))
+                else:
+                    batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}).sort('_id', 1).limit(batch_size))
+                
                 batch_min_id = batch[-1]['_id']
                 logger.info(f'[{b_loop}/{start_batch}] Skipping batch. Min _id: {batch_min_id}')
         
         logger.info(f'[Main-Thread] Starting to process batches from {start_batch} to {end_batch}. Min _id: {batch_min_id}')
-
+    
         for i in range(start_batch, end_batch):
-            batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}, no_cursor_timeout=True).sort('_id', 1).limit(batch_size))
+            if is_object_id_type:
+                batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': ObjectId(batch_min_id)}}, no_cursor_timeout=True).sort('_id', 1).limit(batch_size))
+            else:
+                batch = list(self.mongodb_service.coll_src.find({'_id': {'$gte': batch_min_id}}, no_cursor_timeout=True).sort('_id', 1).limit(batch_size))
+            
             batch_count = len(batch)
-
+    
             if batch_count > 0:
                 last_document = batch[batch_count - 1]
                 batch_max_id = last_document['_id']
@@ -138,5 +161,5 @@ class MongoDBCollectionService:
             else:
                 logger.info(f'[Main-Thread] No more documents to process')
                 break
-
+    
         logger.debug(f'Processed up to batch {end_batch}')
