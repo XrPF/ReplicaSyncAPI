@@ -34,9 +34,9 @@ class MongoDBCollectionService:
         base_sleep_time = min(self.mongodb_service.max_workers, 60)
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
-    def is_object_id(value):
+    def is_object_id(self, value):
         try:
-            ObjectId(value)
+            ObjectId(self, value)
             return True
         except (InvalidId, TypeError):
             return False
