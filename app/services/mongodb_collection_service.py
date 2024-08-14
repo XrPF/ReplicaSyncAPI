@@ -6,7 +6,8 @@ import threading
 import gc
 from pymongo import UpdateOne
 from concurrent.futures import ThreadPoolExecutor
-from bson import ObjectId, InvalidId
+from bson import ObjectId
+from bson.errors import InvalidId
 from app.services.prometheus_service import PrometheusService
 
 logger = logging.getLogger(__name__)
