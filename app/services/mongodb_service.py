@@ -31,8 +31,8 @@ class MongoDBService:
             self.machine_id = int(os.getenv('VM_WORKER_ID'))
         else:
             self.machine_id = "master-0"
-        self.max_workers = int(os.getenv('MAX_WORKERS', 1))
-        self.percentage = float(os.getenv('PERCENTAGE', 0.2))
+        self.base_max_batch_size = int(os.getenv('BASE_MAX_BATCH_SIZE', 1))
+        self.target_batch_size = int(os.getenv('TARGET_BATCH_SIZE', 1))
     
     def init_mongo_connections(self):
         uri1 = os.getenv('MONGO_CONNECTION_STRING_1') or self.build_mongo_uri('MONGO_HOSTS_1', 'MONGO_OPTS_1')
@@ -109,8 +109,9 @@ class MongoDBService:
             self.coll_src = self.get_collection(db_name, collection_name, self.syncSrc)
             self.coll_dst = self.get_collection(db_name, collection_name, self.syncDst)
             self.total_docs = self.coll_src.estimated_document_count()
+            self.avg_doc_size = self.syncSrc[db_name].command('collStats', collection_name).get('avgObjSize', 1)
             logger.info(f'[{self.machine_id}] ({db_name}) Estimated docs: {self.total_docs} in collection {collection_name}')
-            batch_size = mongodb_collections.calculate_batch_size(self.total_docs)
+            batch_size = mongodb_collections.calculate_batch_size(self.total_docs, self.avg_doc_size)
             parent_batches = math.ceil(self.total_docs / batch_size)
             batches_per_machine = math.ceil(parent_batches / self.total_machines)
             start_batch = (self.machine_id - 1) * batches_per_machine

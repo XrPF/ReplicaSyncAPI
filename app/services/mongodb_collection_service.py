@@ -16,19 +16,13 @@ class MongoDBCollectionService:
     def __init__(self, mongodb_service):
         self.mongodb_service = mongodb_service
         self.prometheus_service = PrometheusService.getInstance()
-
-    def calculate_batch_size(self, total_docs):
-        if total_docs >= 1_000_000:
-            divisor = 100
-        elif 1_000 <= total_docs < 1_000_000:
-            divisor = 10
-        else:
-            divisor = 1
-
-        num_batches = max((int(total_docs * self.mongodb_service.percentage) // divisor), 1)
-        max_workers = max(min(self.mongodb_service.max_workers, num_batches), 1)
-        batch_size = math.ceil(num_batches / max_workers)
-        return max(batch_size, 1)
+        
+    def calculate_batch_size(self, total_docs, avg_doc_size):
+        dynamic_max_batch_size = max(int(self.base_max_batch_size * (self.target_batch_size / avg_doc_size)), 1)
+        size_factor = max(min(1, self.target_batch_size / avg_doc_size), 0.1)
+        batch_size = min(math.ceil(total_docs * size_factor), dynamic_max_batch_size)
+        batch_size = max(batch_size, 1)
+        return batch_size
     
     def calculate_sleep_time(self):
         base_sleep_time = min(self.mongodb_service.max_workers, 60)
