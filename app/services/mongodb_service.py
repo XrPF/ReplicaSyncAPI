@@ -112,7 +112,7 @@ class MongoDBService:
             self.total_docs = self.coll_src.estimated_document_count()
             self.avg_doc_size = self.syncSrc[db_name].command('collStats', collection_name).get('avgObjSize', 1)
             logger.info(f'[{self.machine_id}] ({db_name}) Estimated docs: {self.total_docs} in collection {collection_name}')
-            batch_size = mongodb_collections.calculate_batch_size(self.total_docs, self.avg_doc_size)
+            batch_size = mongodb_collections.calculate_batch_size(self.total_docs, self.avg_doc_size, self.base_max_batch_size, self.target_batch_size)
             parent_batches = math.ceil(self.total_docs / batch_size)
             batches_per_machine = math.ceil(parent_batches / self.total_machines)
             start_batch = (self.machine_id - 1) * batches_per_machine

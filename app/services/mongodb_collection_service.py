@@ -17,9 +17,9 @@ class MongoDBCollectionService:
         self.mongodb_service = mongodb_service
         self.prometheus_service = PrometheusService.getInstance()
         
-    def calculate_batch_size(self, total_docs, avg_doc_size):
-        dynamic_max_batch_size = max(int(self.base_max_batch_size * (self.target_batch_size / avg_doc_size)), 1)
-        size_factor = max(min(1, self.target_batch_size / avg_doc_size), 0.1)
+    def calculate_batch_size(self, total_docs, avg_doc_size, base_max_batch_size, target_batch_size):
+        dynamic_max_batch_size = max(int(base_max_batch_size * (target_batch_size / avg_doc_size)), 1)
+        size_factor = max(min(1, target_batch_size / avg_doc_size), 0.1)
         batch_size = min(math.ceil(total_docs * size_factor), dynamic_max_batch_size)
         batch_size = max(batch_size, 1)
         return batch_size
