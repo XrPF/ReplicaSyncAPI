@@ -25,7 +25,7 @@ class MongoDBCollectionService:
         return batch_size
     
     def calculate_sleep_time(self):
-        base_sleep_time = min(self.mongodb_service.max_workers, 60)
+        base_sleep_time = min(self.mongodb_service.total_machines, 60)
         return random.uniform((base_sleep_time / 2) / self.mongodb_service.total_machines, base_sleep_time)
     
     def is_object_id(self, value):
