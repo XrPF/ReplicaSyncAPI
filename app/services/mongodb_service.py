@@ -1,6 +1,7 @@
 import os
 import gc
 import math
+import random
 import logging
 import threading
 import time
@@ -18,7 +19,7 @@ class MongoDBService:
         self.init_mongo_connections()
         self.processed_docs_lock = None
         self.prometheus_service = PrometheusService().getInstance()
-        logger.info(f'[{self.machine_id}] ReplicaSyncAPI initialized. {self.max_workers} workers available. {self.total_machines} machines available.')
+        logger.info(f'[{self.machine_id}] ReplicaSyncAPI initialized. {self.total_machines} machines available.')
         logger.info(f'[{self.machine_id}] Garbage collector is enabled: {gc.isenabled()}. Garbage collector threshold: {gc.get_threshold()}')
 
     def load_env_vars(self):
@@ -121,7 +122,7 @@ class MongoDBService:
             logger.info(f'[{self.machine_id}] Sync ended for {db_name}.{collection_name}. Closed connections to databases and exiting...')
             self.processed_docs = 0
             self.close_connections()
-            time.sleep(self.max_workers)
+            time.sleep(random.uniform(1, int(self.total_machines)))
             self.prometheus_service.set_node_sync_status(0)
             gc.collect()
         return True
