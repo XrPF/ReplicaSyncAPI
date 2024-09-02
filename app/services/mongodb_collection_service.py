@@ -5,6 +5,7 @@ import logging
 import threading
 import gc
 from pymongo import UpdateOne
+from pymongo.errors import BulkWriteError
 from concurrent.futures import ThreadPoolExecutor
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -60,9 +61,17 @@ class MongoDBCollectionService:
                 with self.mongodb_service.processed_docs_lock:
                     self.mongodb_service.processed_docs += num_ids
                 self.prometheus_service.increment_sync_processed_docs_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, value=num_ids)
+            except BulkWriteError as bwe:
+                bwe_code = bwe.details['writeErrors'][0]['code']
+                self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type=str(bwe_code))
+                if bwe_code == 11000:
+                    logger.warning(f'[{threading.current_thread().name}] Duplicate key error ignored: {bwe.details}')
+                else:
+                    logger.error(f'[{threading.current_thread().name}] ERROR in bulk_write: {bwe.details}')
+                    raise
             except Exception as e:
                 logger.error(f'[{threading.current_thread().name}] ERROR in bulk_write: {e}')
-                self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='bulk_write')
+                self.prometheus_service.increment_sync_errors_counter(thread_name=threading.current_thread().name, db_name=db_name, collection_name=collection_name, error_type='other')
                 raise
         else:
             logger.info(f'[{threading.current_thread().name}] No operations to write')
